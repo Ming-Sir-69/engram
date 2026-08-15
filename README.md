@@ -94,6 +94,36 @@ engram migrate from-markdown
 engram bench recall --gold gold.json --mode hybrid --top-k 5 --min-hits 28
 ```
 
+## 接入 AI Agent（MCP）
+
+以 stdio MCP 服务运行，供 Claude Code、Codex 等宿主共享同一个知识库：
+
+```bash
+engram mcp
+```
+
+宿主配置（以 Claude Code 的 `.mcp.json` 为例）：
+
+```json
+{
+  "mcpServers": {
+    "engram": { "command": "engram", "args": ["mcp"] }
+  }
+}
+```
+
+暴露四个工具，**没有"选分类"这类动作**——外部 Agent 可以触发分类，但不参与裁决：
+
+| 工具 | 作用 |
+|---|---|
+| `remember` | 写入一条内容；不需判断分类，不依赖模型 |
+| `recall` | 检索，返回标题与摘要；`keyword` 模式随时可用 |
+| `get` | 按 id 取完整正文 |
+| `status` | 记录数、待补全积压、向量数 |
+
+传输层不依赖官方 SDK：只用 stdio，而 SDK 的体量几乎都在 HTTP、OAuth 与遥测上，
+与"完全本地、依赖可审计"相悖。因此 clone 下来无需额外依赖即可运行。
+
 ## 设计原则
 
 - **写入端最小化，输出端计算化** —— "这条记录接下来要做什么"由消费方读取时决定，不作为写入时的负担
