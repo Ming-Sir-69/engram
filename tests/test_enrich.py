@@ -59,7 +59,7 @@ def build_service(repository, store, embedder) -> EnrichmentService:
 
 def test_drain_embeds_classifies_and_clears_job(context) -> None:
     repository, store = context
-    record = repository.create(RecordDraft(title="认知工效学", body="人因 负荷"))
+    record = repository.create(RecordDraft(title="负荷分级", body="人因 负荷"))
     service = build_service(repository, store, DeterministicEmbedder(dimensions=8))
     result = service.drain(now="2026-08-15T00:00:00Z")
     assert result.succeeded == 1
@@ -132,7 +132,7 @@ def test_content_survives_enrichment_failure(context) -> None:
 
 def test_locked_facet_is_not_overwritten(context) -> None:
     repository, store = context
-    record = repository.create(RecordDraft(title="认知工效学", body="人因"))
+    record = repository.create(RecordDraft(title="负荷分级", body="人因"))
     repository.connection.execute(
         "INSERT INTO facets(record_id, kind, value, provenance, confidence, locked) "
         "VALUES (?, 'domain', 'unsorted', 'human', 1.0, 1)",

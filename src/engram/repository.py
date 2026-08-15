@@ -3,12 +3,18 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from engram.db import write_transaction
-from engram.domain import RECORD_TYPES, Record, RecordDraft, content_hash_for
+from engram.domain import (
+    RECORD_TYPES,
+    Facet,
+    Record,
+    RecordDraft,
+    content_hash_for,
+)
 from engram.errors import InvalidInputError, RecordNotFoundError
 from engram.tokenizer import fts_document
 
@@ -205,6 +211,53 @@ class RecordRepository:
                 """,
                 (error[:500], job_id),
             )
+
+    def upsert_facets(self, facets: Iterable[Facet]) -> None:
+        """写入标签。`locked` 的标签不被覆盖——人工判断优先于任何自动结果。"""
+        with write_transaction(self.connection) as tx:
+            for facet in facets:
+                tx.execute(
+                    """
+                    INSERT INTO facets(
+                        record_id, kind, value, provenance, confidence, locked
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(record_id, kind, value) DO UPDATE SET
+                        provenance = excluded.provenance,
+                        confidence = excluded.confidence
+                    WHERE facets.locked = 0
+                    """,
+                    (
+                        facet.record_id,
+                        facet.kind,
+                        facet.value,
+                        facet.provenance,
+                        facet.confidence,
+                        int(facet.locked),
+                    ),
+                )
+
+    def trusted_facets(self, record_id: str) -> tuple[Facet, ...]:
+        """取该记录已有的可信标签（规则收割或人工确认）。"""
+        rows = self.connection.execute(
+            """
+            SELECT kind, value, provenance, confidence, locked
+            FROM facets
+            WHERE record_id = ? AND (provenance IN ('rule','human') OR locked = 1)
+            ORDER BY kind, value
+            """,
+            (record_id,),
+        ).fetchall()
+        return tuple(
+            Facet(
+                record_id=record_id,
+                kind=row["kind"],
+                value=row["value"],
+                provenance=row["provenance"],
+                confidence=row["confidence"],
+                locked=bool(row["locked"]),
+            )
+            for row in rows
+        )
 
     def backlog(self) -> dict[str, int]:
         row = self.connection.execute(

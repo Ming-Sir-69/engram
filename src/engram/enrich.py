@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from engram.classify import Classifier
-from engram.db import write_transaction
 from engram.embedding import Embedder
 from engram.errors import ModelUnavailableError
 from engram.links import build_links
@@ -98,7 +97,7 @@ class EnrichmentService:
                 input_hash=record.content_hash,
             )
             result = self.classifier.classify(record, vector)
-            self._persist_facets(result.facets)
+            self.repository.upsert_facets(result.facets)
             neighbors = self.store.neighbors(
                 vector, limit=self.link_count, exclude=record.record_id
             )
@@ -111,25 +110,3 @@ class EnrichmentService:
             failed_transient=transient,
             failed_permanent=permanent,
         )
-
-    def _persist_facets(self, facets) -> None:
-        with write_transaction(self.repository.connection) as tx:
-            for facet in facets:
-                tx.execute(
-                    """
-                    INSERT INTO facets(
-                        record_id, kind, value, provenance, confidence, locked
-                    ) VALUES (?, ?, ?, ?, ?, 0)
-                    ON CONFLICT(record_id, kind, value) DO UPDATE SET
-                        provenance = excluded.provenance,
-                        confidence = excluded.confidence
-                    WHERE facets.locked = 0
-                    """,
-                    (
-                        facet.record_id,
-                        facet.kind,
-                        facet.value,
-                        facet.provenance,
-                        facet.confidence,
-                    ),
-                )

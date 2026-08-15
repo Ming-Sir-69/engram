@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_DATA_DIR = Path.home() / "second-brain-data"
+DEFAULT_SOURCE_DIR = Path.home() / ".claude" / "rules" / "second-brain"
 DEFAULT_EMBEDDING_MODEL = "nomic-embed-text-v2-moe"
 DEFAULT_EMBEDDING_DIMENSIONS = 768
 DEFAULT_CLASSIFIER_MODEL = "qwen3.5:4b"
@@ -16,6 +17,8 @@ DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 class EngramConfig:
     data_dir: Path
     db_path: Path
+    source_dir: Path
+    seed_taxonomy_path: Path
     embedding_model: str
     embedding_dimensions: int
     classifier_model: str
@@ -40,6 +43,18 @@ def load_config(
     return EngramConfig(
         data_dir=resolved,
         db_path=db_path,
+        # 源目录只被迁移和导出校验读取，与数据目录分开配置：
+        # 两者混在一起就有把派生内容写回源文件的风险。
+        source_dir=Path(
+            environment.get("ENGRAM_SOURCE_DIR", DEFAULT_SOURCE_DIR)
+        ).expanduser(),
+        # 标题映射表是各人自己的分类习惯，属于配置而非代码：
+        # 内置一份既对别人无效，也等于把私人笔记的目录结构发布出去。
+        seed_taxonomy_path=Path(
+            environment.get(
+                "ENGRAM_SEED_TAXONOMY", resolved / "config" / "seed_taxonomy.json"
+            )
+        ).expanduser(),
         embedding_model=environment.get(
             "ENGRAM_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL
         ),

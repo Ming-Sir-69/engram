@@ -16,15 +16,15 @@ def test_blob_round_trip() -> None:
 
 def test_deterministic_embedder_is_stable() -> None:
     embedder = DeterministicEmbedder(dimensions=64)
-    first = embedder.embed(["认知工效学"])
-    second = embedder.embed(["认知工效学"])
+    first = embedder.embed(["负荷分级"])
+    second = embedder.embed(["负荷分级"])
     assert first == second
     assert len(first[0]) == 64
 
 
 def test_deterministic_embedder_separates_topics() -> None:
     embedder = DeterministicEmbedder(dimensions=64)
-    vectors = embedder.embed(["认知工效学 人因", "量子色动力学 夸克"])
+    vectors = embedder.embed(["负荷分级 人因", "量子色动力学 夸克"])
     dot = sum(a * b for a, b in zip(vectors[0], vectors[1], strict=True))
     assert dot < 0.5
 
