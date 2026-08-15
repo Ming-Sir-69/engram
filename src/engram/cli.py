@@ -13,6 +13,7 @@ from engram.errors import EngramError, exit_code_for
 from engram.migrations import migrate
 from engram.repository import RecordRepository
 from engram.search import SearchService
+from engram.sync import sync_derived
 
 
 def _emit(payload: dict[str, object], *, human: bool) -> None:
@@ -71,6 +72,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     export_markdown = export.add_parser("markdown")
     export_markdown.add_argument("--out", required=True)
+    # 接管人工维护的目录是一次性动作，必须显式说出来：
+    # 默认拒绝覆盖非本工具生成的文件，是这里最有价值的一道保护。
+    export_markdown.add_argument("--adopt", action="store_true")
     export_jsonl = export.add_parser("jsonl")
     export_jsonl.add_argument("--out", required=True)
 
@@ -133,6 +137,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             payload = record.to_dict()
             payload["backlog"] = repository.backlog()
+            sync = sync_derived(config=config, repository=repository)
+            if sync is not None:
+                payload["sync"] = sync
             _emit(payload, human=args.human)
             return 0
         if args.command == "record" and args.record_command == "get":
@@ -182,7 +189,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             from engram.export import export_jsonl, export_markdown
 
             exported = (
-                export_markdown(repository=repository, out_dir=Path(args.out))
+                export_markdown(
+                    repository=repository, out_dir=Path(args.out), adopt=args.adopt
+                )
                 if args.export_command == "markdown"
                 else export_jsonl(repository=repository, out_file=Path(args.out))
             )

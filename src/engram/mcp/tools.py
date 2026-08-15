@@ -21,6 +21,7 @@ from engram.errors import InvalidInputError
 from engram.migrations import migrate
 from engram.repository import RecordRepository
 from engram.search import SearchService
+from engram.sync import sync_derived
 
 MAX_TOP_K = 20
 _MODES = ("keyword", "vector", "hybrid")
@@ -101,6 +102,9 @@ def _remember(context: ToolContext, arguments: dict) -> dict[str, object]:
     # 积压一并返回：写入是即时的、语义补全是异步的，不讲清楚
     # 调用方会以为刚写的内容立刻就能被语义召回。
     payload["backlog"] = context.repository.backlog()
+    sync = sync_derived(config=context.config, repository=context.repository)
+    if sync is not None:
+        payload["sync"] = sync
     return payload
 
 

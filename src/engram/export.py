@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import time
 from pathlib import Path
 
 from engram.errors import InvalidInputError
@@ -20,16 +22,38 @@ from engram.repository import RecordRepository
 DERIVED_MARKER = "<!-- engram: derived view, do not edit -->"
 
 
+def _is_derived(path: Path) -> bool:
+    with path.open(encoding="utf-8") as handle:
+        return handle.readline().rstrip("\n") == DERIVED_MARKER
+
+
 def _assert_writable(path: Path) -> None:
     if not path.exists():
         return
-    with path.open(encoding="utf-8") as handle:
-        first = handle.readline().rstrip("\n")
-    if first != DERIVED_MARKER:
+    if not _is_derived(path):
         raise InvalidInputError(
             "refusing to overwrite a file that engram did not generate",
             context={"path": str(path), "expected_first_line": DERIVED_MARKER},
         )
+
+
+def _adopt(out_dir: Path, names: list[str]) -> int:
+    """把人工维护的文件正式交由 engram 生成，先留一份原件。
+
+    接管是一次不可逆的覆盖。没有备份的接管，等于把多年笔记压在一条命令上。
+    """
+    stale = [
+        name
+        for name in names
+        if (out_dir / name).exists() and not _is_derived(out_dir / name)
+    ]
+    if not stale:
+        return 0
+    backup = out_dir / f".engram-backup-{time.strftime('%Y%m%d%H%M%S')}"
+    backup.mkdir(parents=True, exist_ok=True)
+    for name in stale:
+        shutil.copy2(out_dir / name, backup / name)
+    return len(stale)
 
 
 def _rows(repository: RecordRepository):
@@ -38,7 +62,9 @@ def _rows(repository: RecordRepository):
     ).fetchall()
 
 
-def export_markdown(*, repository: RecordRepository, out_dir: Path) -> dict[str, int]:
+def export_markdown(
+    *, repository: RecordRepository, out_dir: Path, adopt: bool = False
+) -> dict[str, int]:
     out_dir = Path(out_dir)
     grouped: dict[str, list[tuple[int, list[str], str]]] = {}
     for row in _rows(repository):
@@ -53,8 +79,12 @@ def export_markdown(*, repository: RecordRepository, out_dir: Path) -> dict[str,
         )
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name in sorted(grouped):
-        _assert_writable(out_dir / name)
+    if adopt:
+        backed_up = _adopt(out_dir, sorted(grouped))
+    else:
+        backed_up = 0
+        for name in sorted(grouped):
+            _assert_writable(out_dir / name)
 
     records = 0
     for name, entries in sorted(grouped.items()):
@@ -72,7 +102,7 @@ def export_markdown(*, repository: RecordRepository, out_dir: Path) -> dict[str,
             records += 1
         lines.append("")
         (out_dir / name).write_text("\n".join(lines), encoding="utf-8")
-    return {"files": len(grouped), "records": records}
+    return {"files": len(grouped), "records": records, "backed_up": backed_up}
 
 
 def export_jsonl(*, repository: RecordRepository, out_file: Path) -> dict[str, int]:
