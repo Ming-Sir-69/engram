@@ -84,6 +84,9 @@ def _build_parser() -> argparse.ArgumentParser:
     recall.add_argument("--offline", action="store_true")
     recall.add_argument("--min-hits", type=int, default=None)
 
+    serve_mcp = sub.add_parser("mcp")
+    serve_mcp.add_argument("--offline", action="store_true")
+
     sub.add_parser("status")
     return parser
 
@@ -235,6 +238,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     else search.hybrid(args.query, vector, limit=args.top_k)
                 )
             _emit({"results": [hit.to_dict() for hit in hits]}, human=args.human)
+            return 0
+        if args.command == "mcp":
+            from engram.mcp.server import serve
+            from engram.mcp.tools import ToolContext
+
+            # 复用已建好的连接：stdout 在这条路径上是协议通道，
+            # 任何额外输出都会让宿主解析失败，因此这里不打印任何东西。
+            serve(
+                ToolContext(
+                    config=config,
+                    repository=repository,
+                    search=search,
+                    offline=args.offline,
+                )
+            )
             return 0
         if args.command == "status":
             payload: dict[str, object] = {
