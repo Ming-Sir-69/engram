@@ -62,16 +62,15 @@ def test_record_type_is_constrained(tmp_path: Path) -> None:
 def test_write_transaction_rolls_back_on_error(tmp_path: Path) -> None:
     connection = connect(tmp_path / "engram.sqlite3")
     migrate(connection)
-    with pytest.raises(ValueError):
-        with write_transaction(connection) as tx:
-            tx.execute(
-                """
+    with pytest.raises(ValueError), write_transaction(connection) as tx:
+        tx.execute(
+            """
                 INSERT INTO records(
                     record_id, record_type, title, body, status,
                     attributes_json, revision, created_at, updated_at,
                     source_agent, content_hash
                 ) VALUES ('r1','note','t','b','active','{}',1,'now','now','test','h')
                 """
-            )
-            raise ValueError("boom")
+        )
+        raise ValueError("boom")
     assert connection.execute("SELECT COUNT(*) FROM records").fetchone()[0] == 0
