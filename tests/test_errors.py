@@ -52,10 +52,11 @@ def test_model_unavailable_maps_to_69_and_is_retryable() -> None:
 
 
 def test_internal_details_never_leak_into_public_payload() -> None:
+    marker = "internal-only-diagnostic-marker"
     try:
-        raise ValueError("secret path /Users/private/data")
+        raise ValueError(marker)
     except ValueError as exc:
         error = EngramError("internal failure", cause=exc)
-    payload = error.to_problem(instance="cli:x").to_dict()
-    assert "secret path" not in json.dumps(payload)
-    assert "Traceback" not in json.dumps(payload)
+    payload = json.dumps(error.to_problem(instance="cli:x").to_dict())
+    assert marker not in payload
+    assert "Traceback" not in payload
