@@ -25,9 +25,9 @@ def service(tmp_path: Path) -> tuple[RecordRepository, SearchService]:
 def test_chinese_query_matches(service) -> None:
     repository, search = service
     record = repository.create(
-        RecordDraft(title="认知工效学任务管理", body="以 A/B/C 三级任务对应负荷")
+        RecordDraft(title="负荷分级编排", body="以 A/B/C 三级任务对应负荷")
     )
-    hits = search.keyword("认知工效", limit=5)
+    hits = search.keyword("负荷分级", limit=5)
     assert hits[0].record_id == record.record_id
     assert hits[0].keyword_score > 0
 
@@ -43,7 +43,7 @@ def test_identifier_query_matches(service) -> None:
 
 def test_unrelated_query_returns_nothing(service) -> None:
     repository, search = service
-    repository.create(RecordDraft(title="认知工效学", body="人因"))
+    repository.create(RecordDraft(title="负荷分级", body="人因"))
     assert search.keyword("量子色动力学", limit=5) == []
 
 

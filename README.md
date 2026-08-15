@@ -55,9 +55,44 @@ engram status
 | 环境变量 | 默认值 |
 |---|---|
 | `ENGRAM_DATA_DIR` | `~/second-brain-data` |
+| `ENGRAM_SOURCE_DIR` | `~/.claude/rules/second-brain` |
+| `ENGRAM_SEED_TAXONOMY` | `$ENGRAM_DATA_DIR/config/seed_taxonomy.json` |
 | `ENGRAM_EMBEDDING_MODEL` | `nomic-embed-text-v2-moe` |
 | `ENGRAM_EMBEDDING_DIMENSIONS` | `768` |
+| `ENGRAM_CLASSIFIER_MODEL` | `qwen3.5:4b` |
 | `ENGRAM_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` |
+
+## 从 Markdown 迁移
+
+把既有笔记一次性迁入数据库。迁移只读源文件，不写、不改、不重命名；靠内容哈希
+保证幂等，可以先看清楚再真跑：
+
+```bash
+engram migrate from-markdown --dry-run
+engram migrate from-markdown
+```
+
+笔记里的 `##` / `###` 标题通常已经是长期人工维护的分类结果。给出一张标题映射表，
+迁移时会把它转成高置信度标签写入，省掉一轮模型推断：
+
+```json
+{
+  "机械结构": { "domains": ["product-design"], "tags": ["mechanism-design"] }
+}
+```
+
+放到 `$ENGRAM_DATA_DIR/config/seed_taxonomy.json`（或用 `--taxonomy` 指定）。
+标题因人而异，因此这张表属于你的配置，不随程序发布。没有它迁移照常进行，
+报告里的 `unseeded` 会等于总条数——这个数字就是映射表的覆盖率。
+
+## 检索质量回归
+
+换嵌入模型、改分词或调融合权重之后，用一组固定问题证明检索没有变差。门槛由
+退出码判定，可直接挂进脚本：
+
+```bash
+engram bench recall --gold gold.json --mode hybrid --top-k 5 --min-hits 28
+```
 
 ## 设计原则
 

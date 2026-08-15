@@ -22,7 +22,7 @@ def populated(tmp_path: Path):
     store = VectorStore(connection, dimensions=64)
     embedder = DeterministicEmbedder(dimensions=64)
     for title, body in [
-        ("认知工效学任务管理", "以 A/B/C 三级任务对应高中低负荷"),
+        ("负荷分级编排", "以 A/B/C 三级任务对应高中低负荷"),
         ("人因工程环境因素", "照度 噪音 温度 湿度 对工作人员的影响"),
         ("AI 剪辑候选", "browser-use/video-use 项目 语音转写"),
     ]:
@@ -51,9 +51,9 @@ def test_vector_search_returns_semantic_neighbor(populated) -> None:
 def test_hybrid_merges_both_channels(populated) -> None:
     connection, store, embedder = populated
     search = SearchService(connection, store=store)
-    vector = embedder.embed(["认知工效学"])[0]
-    hits = search.hybrid("认知工效学", vector, limit=3)
-    assert hits[0].title == "认知工效学任务管理"
+    vector = embedder.embed(["负荷分级"])[0]
+    hits = search.hybrid("负荷分级", vector, limit=3)
+    assert hits[0].title == "负荷分级编排"
     assert hits[0].keyword_score > 0
     assert hits[0].vector_score > 0
     assert RRF_K == 60
@@ -108,7 +108,7 @@ def test_cli_hybrid_search_end_to_end(capsys, tmp_path: Path) -> None:
             "record",
             "create",
             "--title",
-            "认知工效学",
+            "负荷分级",
             "--body",
             "任务负荷分级",
         ]
@@ -120,7 +120,7 @@ def test_cli_hybrid_search_end_to_end(capsys, tmp_path: Path) -> None:
             "--data-dir",
             str(tmp_path),
             "search",
-            "认知工效学",
+            "负荷分级",
             "--mode",
             "hybrid",
             "--offline",
@@ -128,7 +128,7 @@ def test_cli_hybrid_search_end_to_end(capsys, tmp_path: Path) -> None:
     )
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
-    assert payload["results"][0]["title"] == "认知工效学"
+    assert payload["results"][0]["title"] == "负荷分级"
 
 
 def test_write_path_loads_no_model_modules(tmp_path: Path) -> None:

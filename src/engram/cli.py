@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from engram.config import load_config
 from engram.db import connect
@@ -56,6 +57,32 @@ def _build_parser() -> argparse.ArgumentParser:
     drain = index.add_parser("drain")
     drain.add_argument("--limit", type=int, default=20)
     drain.add_argument("--offline", action="store_true")
+
+    migrate_command = sub.add_parser("migrate").add_subparsers(
+        dest="migrate_command", required=True
+    )
+    from_markdown = migrate_command.add_parser("from-markdown")
+    from_markdown.add_argument("--source", default=None)
+    from_markdown.add_argument("--taxonomy", default=None)
+    from_markdown.add_argument("--dry-run", action="store_true")
+
+    export = sub.add_parser("export").add_subparsers(
+        dest="export_command", required=True
+    )
+    export_markdown = export.add_parser("markdown")
+    export_markdown.add_argument("--out", required=True)
+    export_jsonl = export.add_parser("jsonl")
+    export_jsonl.add_argument("--out", required=True)
+
+    bench = sub.add_parser("bench").add_subparsers(dest="bench_command", required=True)
+    recall = bench.add_parser("recall")
+    recall.add_argument("--gold", required=True)
+    recall.add_argument("--top-k", type=int, default=5)
+    recall.add_argument(
+        "--mode", default="keyword", choices=["keyword", "vector", "hybrid"]
+    )
+    recall.add_argument("--offline", action="store_true")
+    recall.add_argument("--min-hits", type=int, default=None)
 
     sub.add_parser("status")
     return parser
@@ -134,6 +161,65 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _emit(service.drain(limit=args.limit).to_dict(), human=args.human)
             return 0
+        if args.command == "migrate" and args.migrate_command == "from-markdown":
+            from engram.ingest.migrate import migrate_from_markdown
+            from engram.ingest.taxonomy import load_seed_taxonomy
+
+            report = migrate_from_markdown(
+                source_dir=Path(args.source) if args.source else config.source_dir,
+                repository=repository,
+                taxonomy=load_seed_taxonomy(
+                    Path(args.taxonomy) if args.taxonomy else config.seed_taxonomy_path
+                ),
+                dry_run=args.dry_run,
+            )
+            _emit(report.to_dict(), human=args.human)
+            return 0
+        if args.command == "export":
+            from engram.export import export_jsonl, export_markdown
+
+            exported = (
+                export_markdown(repository=repository, out_dir=Path(args.out))
+                if args.export_command == "markdown"
+                else export_jsonl(repository=repository, out_file=Path(args.out))
+            )
+            _emit(exported, human=args.human)
+            return 0
+        if args.command == "bench" and args.bench_command == "recall":
+            from engram.bench import load_gold, run_recall
+
+            embed_query = None
+            if args.mode != "keyword":
+                embedder, store = _vector_components(
+                    config, offline=args.offline, connection=connection
+                )
+                search.store = store
+
+                def embed_query(text: str) -> list[float]:
+                    return embedder.embed([text])[0]
+
+            report = run_recall(
+                gold=load_gold(Path(args.gold)),
+                search=search,
+                top_k=args.top_k,
+                mode=args.mode,
+                embed_query=embed_query,
+            )
+            measured = report.to_dict()
+            if args.min_hits is None:
+                _emit(measured, human=args.human)
+                return 0
+            # 门槛由工具判定并体现在退出码上，这样它才能挂进脚本和阶段验收，
+            # 而不是依赖有人去读那一行分数。
+            achieved = report.hits[args.top_k]
+            passed = achieved >= args.min_hits
+            measured["gate"] = {
+                "min_hits": args.min_hits,
+                "hits": achieved,
+                "passed": passed,
+            }
+            _emit(measured, human=args.human)
+            return 0 if passed else 1
         if args.command == "search":
             if args.mode == "keyword":
                 hits = search.keyword(args.query, limit=args.top_k)

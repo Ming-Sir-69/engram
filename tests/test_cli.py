@@ -35,10 +35,10 @@ def test_duplicate_content_returns_same_id(capsys, tmp_path: Path) -> None:
 
 
 def test_search_finds_created_record(capsys, tmp_path: Path) -> None:
-    run(capsys, tmp_path, "record", "create", "--title", "认知工效学", "--body", "人因")
-    code, payload = run(capsys, tmp_path, "search", "认知工效", "--mode", "keyword")
+    run(capsys, tmp_path, "record", "create", "--title", "负荷分级", "--body", "人因")
+    code, payload = run(capsys, tmp_path, "search", "负荷分级", "--mode", "keyword")
     assert code == 0
-    assert payload["results"][0]["title"] == "认知工效学"
+    assert payload["results"][0]["title"] == "负荷分级"
 
 
 def test_missing_record_exits_66(capsys, tmp_path: Path) -> None:

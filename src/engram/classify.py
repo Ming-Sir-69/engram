@@ -177,6 +177,9 @@ class Classifier:
     def classify(
         self, record: Record, vector: list[float] | None
     ) -> ClassificationResult:
+        trusted = self._trusted_layer(record)
+        if trusted is not None:
+            return trusted
         rule = self._rule_layer(record)
         if rule is not None:
             return rule
@@ -199,6 +202,39 @@ class Classifier:
             ),
             provenance="default",
             needs_review=True,
+        )
+
+    def _trusted_layer(self, record: Record) -> ClassificationResult | None:
+        """已有规则收割或人工确认的标签时，整条链直接短路。
+
+        迁移会把源文件标题收割成 `rule` 标签，置信度高于 kNN 和模型；再猜一遍
+        既浪费算力，也会用低置信度结果覆盖高置信度标注。`model` 来源不豁免。
+        """
+        rows = self.store.connection.execute(
+            """
+            SELECT kind, value, provenance, confidence, locked
+            FROM facets
+            WHERE record_id = ? AND (provenance IN ('rule','human') OR locked = 1)
+            ORDER BY kind, value
+            """,
+            (record.record_id,),
+        ).fetchall()
+        if not rows:
+            return None
+        return ClassificationResult(
+            facets=tuple(
+                Facet(
+                    record_id=record.record_id,
+                    kind=row["kind"],
+                    value=row["value"],
+                    provenance=row["provenance"],
+                    confidence=row["confidence"],
+                    locked=bool(row["locked"]),
+                )
+                for row in rows
+            ),
+            provenance="rule",
+            needs_review=False,
         )
 
     def _rule_layer(self, record: Record) -> ClassificationResult | None:

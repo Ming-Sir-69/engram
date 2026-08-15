@@ -41,7 +41,7 @@ def _store_record(repository, store, embedder, title: str, body: str):
 def test_put_then_find_self_as_nearest(context) -> None:
     repository, store, embedder = context
     record, vector = _store_record(
-        repository, store, embedder, "认知工效学", "人因 负荷"
+        repository, store, embedder, "负荷分级", "人因 负荷"
     )
     neighbors = store.neighbors(vector, limit=1)
     assert neighbors[0][0] == record.record_id

@@ -20,7 +20,7 @@ def test_parses_domains_and_tags() -> None:
         return _response({"domains": ["ie-engineering"], "tags": ["workload"]})
 
     model = OllamaLabelModel(transport=transport)
-    result = model.label("认知工效学", "任务负荷分级")
+    result = model.label("负荷分级", "任务负荷分级")
     assert result["domains"] == ["ie-engineering"]
     assert result["tags"] == ["workload"]
 
