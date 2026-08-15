@@ -109,17 +109,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(repository.get(args.record_id).to_dict(), human=args.human)
             return 0
         if args.command == "index" and args.index_command == "drain":
-            from engram.classify import Classifier
+            from engram.classify import Classifier, OllamaLabelModel
             from engram.enrich import EnrichmentService
 
             embedder, store = _vector_components(
                 config, offline=args.offline, connection=connection
             )
+            # 离线模式不接模型，仅用于确定性测试；生产路径必须接上本地
+            # 分类器，否则四层降级链缺第三层，冷启动时标签体系无法建立。
+            label_model = (
+                None
+                if args.offline
+                else OllamaLabelModel(
+                    model=config.classifier_model,
+                    base_url=config.ollama_base_url,
+                )
+            )
             service = EnrichmentService(
                 repository=repository,
                 store=store,
                 embedder=embedder,
-                classifier=Classifier(store=store, model=None),
+                classifier=Classifier(store=store, model=label_model),
                 generation=f"{embedder.model}-{embedder.dimensions}",
             )
             _emit(service.drain(limit=args.limit).to_dict(), human=args.human)
