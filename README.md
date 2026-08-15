@@ -56,6 +56,7 @@ engram status
 |---|---|
 | `ENGRAM_DATA_DIR` | `~/second-brain-data` |
 | `ENGRAM_SOURCE_DIR` | `~/.claude/rules/second-brain` |
+| `ENGRAM_EXPORT_DIR` | 未设，即不自动回写 |
 | `ENGRAM_SEED_TAXONOMY` | `$ENGRAM_DATA_DIR/config/seed_taxonomy.json` |
 | `ENGRAM_EMBEDDING_MODEL` | `nomic-embed-text-v2-moe` |
 | `ENGRAM_EMBEDDING_DIMENSIONS` | `768` |
@@ -84,6 +85,29 @@ engram migrate from-markdown
 放到 `$ENGRAM_DATA_DIR/config/seed_taxonomy.json`（或用 `--taxonomy` 指定）。
 标题因人而异，因此这张表属于你的配置，不随程序发布。没有它迁移照常进行，
 报告里的 `unseeded` 会等于总条数——这个数字就是映射表的覆盖率。
+
+## 自动回写 Markdown
+
+事实源换成数据库之后，纯文本备份不该再依赖"记得去导一次"。设置 `ENGRAM_EXPORT_DIR`
+之后，每次写入都会把整库导回 Markdown：
+
+```bash
+export ENGRAM_EXPORT_DIR=~/second-brain-data/derived
+```
+
+同步做在库内部，因此 CLI 与 MCP 两条路径行为一致，调用方不需要知道它存在，
+也不需要额外的工具或宿主 Hook。**同步失败不会让写入失败**——它只在返回值的
+`sync` 字段里报告原因，因为备份是可选功能，而写入是这个库的底线。
+
+导出会拒绝覆盖不是自己生成的文件（首行没有派生标记）。要把一个人工维护的目录
+正式交给 engram，用一次 `--adopt`，原件会先备份到该目录下的 `.engram-backup-<时间戳>/`：
+
+```bash
+engram export markdown --out <目录> --adopt
+```
+
+导出保留全部记录与标题层级，但不保留纯人工的脚手架（空白记录模板、章节引言、
+空占位小节）——那些是给人填表用的，不是内容。
 
 ## 检索质量回归
 

@@ -18,6 +18,7 @@ class EngramConfig:
     data_dir: Path
     db_path: Path
     source_dir: Path
+    export_dir: Path | None
     seed_taxonomy_path: Path
     embedding_model: str
     embedding_dimensions: int
@@ -48,6 +49,13 @@ def load_config(
         source_dir=Path(
             environment.get("ENGRAM_SOURCE_DIR", DEFAULT_SOURCE_DIR)
         ).expanduser(),
+        # 默认不设：自动回写会覆盖目标目录，必须由用户显式指定去处，
+        # 不能靠一个猜出来的默认值去写别人的文件。
+        export_dir=(
+            Path(environment["ENGRAM_EXPORT_DIR"]).expanduser()
+            if environment.get("ENGRAM_EXPORT_DIR")
+            else None
+        ),
         # 标题映射表是各人自己的分类习惯，属于配置而非代码：
         # 内置一份既对别人无效，也等于把私人笔记的目录结构发布出去。
         seed_taxonomy_path=Path(
