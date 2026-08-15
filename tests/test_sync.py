@@ -17,7 +17,7 @@ from engram.config import load_config
 from engram.db import connect
 from engram.domain import RecordDraft
 from engram.errors import InvalidInputError
-from engram.export import DERIVED_MARKER, export_markdown
+from engram.export import DERIVED_MARKER, export_index, export_markdown
 from engram.migrations import migrate
 from engram.repository import RecordRepository
 from engram.sync import sync_derived
@@ -128,6 +128,61 @@ def test_export_still_refuses_hand_written_files_without_adopt(
 
 # 两条写入路径都必须自动同步。同步只接在其中一条上，另一条就会悄悄
 # 让备份落后于库——而这种偏差要等到需要备份的那天才会被发现。
+
+
+def test_index_reports_what_the_library_holds_without_the_contents(
+    tmp_path: Path, repository: RecordRepository
+) -> None:
+    """索引是给上下文用的地图：说明库里有什么，但不含正文。
+
+    全文常驻会把向量库的价值抵消掉——检索的意义正是不必把内容搬进上下文。
+    """
+    for i in range(3):
+        repository.create(RecordDraft(title=f"t{i}", body=f"正文 {i}" * 50))
+    out = tmp_path / "_index.md"
+
+    report = export_index(repository=repository, out_file=out)
+
+    text = out.read_text(encoding="utf-8")
+    assert text.startswith(DERIVED_MARKER)
+    assert "3" in text  # 总数
+    assert report["records"] == 3
+    # 关键：地图不是内容。索引必须显著小于正文总量。
+    assert len(text) < sum(len(f"正文 {i}" * 50) for i in range(3))
+
+
+def test_index_is_written_on_every_write(tmp_path: Path, monkeypatch) -> None:
+    """索引常驻上下文，过时的地图比没有更糟——必须随写入自动更新。"""
+    index = tmp_path / "rules" / "_index.md"
+    monkeypatch.setenv("ENGRAM_EXPORT_DIR", str(tmp_path / "derived"))
+    monkeypatch.setenv("ENGRAM_INDEX_PATH", str(index))
+    from engram.mcp.tools import ToolContext, call_tool
+
+    context = ToolContext.open(data_dir=tmp_path / "data", offline=True)
+    call_tool(context, "remember", {"body": "第一条"})
+    first = index.read_text(encoding="utf-8")
+    call_tool(context, "remember", {"body": "第二条"})
+
+    assert "1" in first
+    assert "2" in index.read_text(encoding="utf-8")
+
+
+def test_a_broken_index_target_never_breaks_the_write(
+    tmp_path: Path, repository: RecordRepository
+) -> None:
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()
+    config = load_config(
+        env={
+            "ENGRAM_DATA_DIR": str(tmp_path / "data"),
+            "ENGRAM_EXPORT_DIR": str(tmp_path / "derived"),
+            "ENGRAM_INDEX_PATH": str(blocked),  # 是目录，写不进去
+        }
+    )
+    result = sync_derived(config=config, repository=repository)
+
+    assert result["ok"] is True  # 全文导出照常成功
+    assert result["index"]["ok"] is False
 
 
 def test_cli_write_syncs(tmp_path: Path, monkeypatch, capsys) -> None:

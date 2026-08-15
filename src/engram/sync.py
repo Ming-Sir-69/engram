@@ -18,20 +18,38 @@ def sync_derived(
     *, config: EngramConfig, repository: RecordRepository
 ) -> dict[str, object] | None:
     """把当前库导出到 `export_dir`。未配置时返回 None，失败时返回原因。"""
-    if config.export_dir is None:
+    if config.export_dir is None and config.index_path is None:
         return None
 
     # 延迟导入：没开同步的进程不必为此加载导出模块。
-    from engram.export import export_markdown
+    from engram.export import export_index, export_markdown
 
-    try:
-        report = export_markdown(repository=repository, out_dir=config.export_dir)
-    except Exception as error:  # noqa: BLE001 - 任何失败都不允许传播到写入路径
-        # 不静默吞掉：调用方拿到的是"写入成功、同步失败"，
-        # 而不是一个看起来一切正常、实际备份早已停摆的库。
-        return {
-            "ok": False,
-            "error": f"{type(error).__name__}: {error}",
-            "path": str(config.export_dir),
-        }
-    return {"ok": True, "path": str(config.export_dir), **report}
+    result: dict[str, object] = {"ok": True}
+    if config.export_dir is not None:
+        try:
+            report = export_markdown(repository=repository, out_dir=config.export_dir)
+        except Exception as error:  # noqa: BLE001 - 任何失败都不允许传播到写入路径
+            # 不静默吞掉：调用方拿到的是"写入成功、同步失败"，
+            # 而不是一个看起来一切正常、实际备份早已停摆的库。
+            result = {
+                "ok": False,
+                "error": f"{type(error).__name__}: {error}",
+                "path": str(config.export_dir),
+            }
+        else:
+            result = {"ok": True, "path": str(config.export_dir), **report}
+
+    if config.index_path is not None:
+        # 索引单独成败：它常驻上下文，过时的地图比没有更糟，
+        # 但它出问题也不该连累全文备份的结论。
+        try:
+            index = export_index(repository=repository, out_file=config.index_path)
+        except Exception as error:  # noqa: BLE001
+            result["index"] = {
+                "ok": False,
+                "error": f"{type(error).__name__}: {error}",
+                "path": str(config.index_path),
+            }
+        else:
+            result["index"] = {"ok": True, "path": str(config.index_path), **index}
+    return result
