@@ -105,6 +105,45 @@ def export_markdown(
     return {"files": len(grouped), "records": records, "backed_up": backed_up}
 
 
+def export_index(*, repository: RecordRepository, out_file: Path) -> dict[str, int]:
+    """生成一份"库里有什么"的地图，不含正文。
+
+    这份索引是唯一适合常驻调用方上下文的东西：它用几百字符说明库的规模与
+    构成，让调用方能判断该不该检索、该往哪个方向检索。把全文搬进上下文
+    则会把向量库的价值整个抵消掉——检索存在的意义正是不必这么做。
+    """
+    out_file = Path(out_file)
+    connection = repository.connection
+    total = repository.count()
+    lines = [
+        DERIVED_MARKER,
+        "",
+        "# 知识库索引",
+        "",
+        (
+            f"共 {total} 条记录。**正文不在本文件里**——用 engram MCP 的 `recall` "
+            "检索、`get` 取全文。下面只说明库里有什么，供判断该不该查、往哪个方向查。"
+        ),
+        "",
+    ]
+    for kind, heading in (("domain", "领域"), ("tag", "标签")):
+        rows = connection.execute(
+            "SELECT value, COUNT(*) AS n FROM facets WHERE kind = ? "
+            "GROUP BY value ORDER BY n DESC, value",
+            (kind,),
+        ).fetchall()
+        if not rows:
+            continue
+        lines.append(f"## {heading}")
+        lines.append("")
+        lines.append("、".join(f"{row['value']} {row['n']}" for row in rows))
+        lines.append("")
+
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text("\n".join(lines), encoding="utf-8")
+    return {"records": total, "bytes": out_file.stat().st_size}
+
+
 def export_jsonl(*, repository: RecordRepository, out_file: Path) -> dict[str, int]:
     out_file = Path(out_file)
     out_file.parent.mkdir(parents=True, exist_ok=True)

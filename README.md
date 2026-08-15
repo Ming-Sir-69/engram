@@ -57,6 +57,7 @@ engram status
 | `ENGRAM_DATA_DIR` | `~/second-brain-data` |
 | `ENGRAM_SOURCE_DIR` | `~/.claude/rules/second-brain` |
 | `ENGRAM_EXPORT_DIR` | 未设，即不自动回写 |
+| `ENGRAM_INDEX_PATH` | 未设，即不生成索引 |
 | `ENGRAM_SEED_TAXONOMY` | `$ENGRAM_DATA_DIR/config/seed_taxonomy.json` |
 | `ENGRAM_EMBEDDING_MODEL` | `nomic-embed-text-v2-moe` |
 | `ENGRAM_EMBEDDING_DIMENSIONS` | `768` |
@@ -108,6 +109,19 @@ engram export markdown --out <目录> --adopt
 
 导出保留全部记录与标题层级，但不保留纯人工的脚手架（空白记录模板、章节引言、
 空占位小节）——那些是给人填表用的，不是内容。
+
+## 给 Agent 上下文的索引
+
+设置 `ENGRAM_INDEX_PATH` 之后，每次写入还会生成一份只讲"库里有什么"的索引：
+总条数与领域、标签分布，几百字符，不含正文。
+
+```bash
+export ENGRAM_INDEX_PATH=~/.claude/rules/second-brain/_index.md
+```
+
+它和全文导出分开配置，因为两者的去处天然不同：**索引适合常驻 Agent 的上下文，
+全文不适合**。把全文搬进上下文会把向量库的价值整个抵消掉——检索存在的意义正是
+不必这么做。有了索引，Agent 能判断该不该查、往哪个方向查，再用 `recall` 精确取。
 
 ## 检索质量回归
 

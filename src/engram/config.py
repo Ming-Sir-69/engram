@@ -19,6 +19,7 @@ class EngramConfig:
     db_path: Path
     source_dir: Path
     export_dir: Path | None
+    index_path: Path | None
     seed_taxonomy_path: Path
     embedding_model: str
     embedding_dimensions: int
@@ -54,6 +55,13 @@ def load_config(
         export_dir=(
             Path(environment["ENGRAM_EXPORT_DIR"]).expanduser()
             if environment.get("ENGRAM_EXPORT_DIR")
+            else None
+        ),
+        # 与全文导出分开配置：索引适合放进调用方每次都会读到的地方，
+        # 全文则不适合——两者的去处天然不同。
+        index_path=(
+            Path(environment["ENGRAM_INDEX_PATH"]).expanduser()
+            if environment.get("ENGRAM_INDEX_PATH")
             else None
         ),
         # 标题映射表是各人自己的分类习惯，属于配置而非代码：

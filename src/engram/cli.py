@@ -77,6 +77,8 @@ def _build_parser() -> argparse.ArgumentParser:
     export_markdown.add_argument("--adopt", action="store_true")
     export_jsonl = export.add_parser("jsonl")
     export_jsonl.add_argument("--out", required=True)
+    export_index = export.add_parser("index")
+    export_index.add_argument("--out", required=True)
 
     bench = sub.add_parser("bench").add_subparsers(dest="bench_command", required=True)
     recall = bench.add_parser("recall")
@@ -186,15 +188,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(report.to_dict(), human=args.human)
             return 0
         if args.command == "export":
-            from engram.export import export_jsonl, export_markdown
+            from engram.export import export_index, export_jsonl, export_markdown
 
-            exported = (
-                export_markdown(
+            if args.export_command == "markdown":
+                exported = export_markdown(
                     repository=repository, out_dir=Path(args.out), adopt=args.adopt
                 )
-                if args.export_command == "markdown"
-                else export_jsonl(repository=repository, out_file=Path(args.out))
-            )
+            elif args.export_command == "index":
+                exported = export_index(
+                    repository=repository, out_file=Path(args.out)
+                )
+            else:
+                exported = export_jsonl(
+                    repository=repository, out_file=Path(args.out)
+                )
             _emit(exported, human=args.human)
             return 0
         if args.command == "bench" and args.bench_command == "recall":
