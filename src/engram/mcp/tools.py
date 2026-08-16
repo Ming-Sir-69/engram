@@ -24,6 +24,8 @@ from engram.search import SearchService
 from engram.sync import sync_derived
 
 MAX_TOP_K = 20
+# 一次检索顺带补全的条数。搭车而已，多了就变成让调用方替后台干活。
+BACKFILL_LIMIT = 2
 _MODES = ("keyword", "vector", "hybrid")
 
 
@@ -70,6 +72,38 @@ class ToolContext:
             self.repository.connection, dimensions=embedder.dimensions
         )
         return embedder
+
+    def _backfill(self, embedder) -> dict[str, object]:
+        """顺带消化一点积压。
+
+        写入不依赖模型，代价是语义层要靠后续调用补上。这里挂在语义检索
+        路径上——它本来就要加载模型，补全等于顺手，而关键词检索因此仍然
+        保持零模型依赖。
+
+        只处理少量：这一步是搭车，不是任务，不该让调用方为它等待。
+        """
+        from engram.classify import Classifier, OllamaLabelModel
+        from engram.enrich import EnrichmentService
+
+        try:
+            label_model = (
+                None
+                if self.offline
+                else OllamaLabelModel(
+                    model=self.config.classifier_model,
+                    base_url=self.config.ollama_base_url,
+                )
+            )
+            service = EnrichmentService(
+                repository=self.repository,
+                store=self.search.store,
+                embedder=embedder,
+                classifier=Classifier(store=self.search.store, model=label_model),
+                generation=f"{embedder.model}-{embedder.dimensions}",
+            )
+            return service.drain(limit=BACKFILL_LIMIT).to_dict()
+        except Exception as error:  # noqa: BLE001 - 搭车的一步不该让检索失败
+            return {"error": f"{type(error).__name__}: {error}"}
 
 
 def _require_text(arguments: dict, name: str) -> str:
@@ -125,16 +159,24 @@ def _recall(context: ToolContext, arguments: dict) -> dict[str, object]:
         )
 
     if mode == "keyword":
-        hits = context.search.keyword(query, limit=top_k)
-    else:
-        embedder = context._vector()
-        vector = embedder.embed([query])[0]
-        hits = (
-            context.search.vector(vector, limit=top_k)
-            if mode == "vector"
-            else context.search.hybrid(query, vector, limit=top_k)
-        )
-    return {"mode": mode, "results": [hit.to_dict() for hit in hits]}
+        return {
+            "mode": mode,
+            "results": [
+                hit.to_dict() for hit in context.search.keyword(query, limit=top_k)
+            ],
+        }
+
+    embedder = context._vector()
+    vector = embedder.embed([query])[0]
+    hits = (
+        context.search.vector(vector, limit=top_k)
+        if mode == "vector"
+        else context.search.hybrid(query, vector, limit=top_k)
+    )
+    # 先拿到结果再补全：补全是搭车的，它的成败不该影响这次检索交付什么。
+    payload = {"mode": mode, "results": [hit.to_dict() for hit in hits]}
+    payload["backfilled"] = context._backfill(embedder)
+    return payload
 
 
 def _get(context: ToolContext, arguments: dict) -> dict[str, object]:
