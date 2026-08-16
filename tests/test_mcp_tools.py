@@ -124,6 +124,52 @@ def test_recall_caps_top_k(context: ToolContext) -> None:
         call_tool(context, "recall", {"query": "x", "top_k": 500})
 
 
+def test_semantic_search_drains_the_backlog(context: ToolContext) -> None:
+    """语义检索顺带补全积压。
+
+    写入不依赖模型，代价是语义层要靠后续调用补上。没有这一步，新写的内容
+    在有人想起来手动 drain 之前都召不回来——而调用方并不知道该去 drain。
+    """
+    call_tool(context, "remember", {"body": "顺带补全的验证"})
+    assert context.repository.backlog()["pending"] == 1
+
+    result = call_tool(context, "recall", {"query": "补全", "mode": "hybrid"})
+
+    assert context.repository.backlog()["pending"] == 0
+    assert result["backfilled"]["succeeded"] == 1
+
+
+def test_keyword_search_never_touches_the_model(context: ToolContext) -> None:
+    """keyword 保持零模型依赖——这是它随时可用的全部理由。
+
+    顺带补全只挂在本来就要加载模型的路径上，绝不能让关键词检索也背上这个代价。
+    """
+    call_tool(context, "remember", {"body": "关键词路径不补全"})
+
+    result = call_tool(context, "recall", {"query": "关键词"})
+
+    assert "backfilled" not in result
+    assert context.repository.backlog()["pending"] == 1
+
+
+def test_a_failing_backfill_still_returns_results(
+    context: ToolContext, monkeypatch
+) -> None:
+    """补全是顺带的：它出问题不该让检索失败。"""
+    from engram import enrich
+
+    def explode(self, **kwargs):
+        raise RuntimeError("model died")
+
+    monkeypatch.setattr(enrich.EnrichmentService, "drain", explode)
+    call_tool(context, "remember", {"body": "补全失败也要能查"})
+
+    result = call_tool(context, "recall", {"query": "补全失败", "mode": "hybrid"})
+
+    assert result["results"]
+    assert result["backfilled"]["error"]
+
+
 def test_get_returns_the_full_body(context: ToolContext) -> None:
     body = "很长的正文" * 40
     record_id = call_tool(context, "remember", {"body": body})["record_id"]

@@ -159,6 +159,10 @@ engram mcp
 | `get` | 按 id 取完整正文 |
 | `status` | 记录数、待补全积压、向量数 |
 
+`recall` 用 `vector` 或 `hybrid` 模式时会顺带补全少量积压——那条路径本来就要加载
+模型，补全等于顺手。这样新写的内容不必等谁想起来手动 `index drain`，而 `keyword`
+模式仍然保持零模型依赖。补全失败只记录在 `backfilled` 字段里，不影响检索结果。
+
 传输层不依赖官方 SDK：只用 stdio，而 SDK 的体量几乎都在 HTTP、OAuth 与遥测上，
 与"完全本地、依赖可审计"相悖。因此 clone 下来无需额外依赖即可运行。
 
