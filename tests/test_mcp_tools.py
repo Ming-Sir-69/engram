@@ -69,6 +69,28 @@ def test_remember_rejects_an_empty_body(context: ToolContext) -> None:
         call_tool(context, "remember", {"body": "   "})
 
 
+def test_remember_advertises_the_valid_types(context: ToolContext) -> None:
+    """不声明合法值，调用方只能猜——而猜错的代价是整条内容写不进来。"""
+    from engram.domain import RECORD_TYPES
+
+    assert set(TOOLS["remember"]["schema"]["properties"]["type"]["enum"]) == set(
+        RECORD_TYPES
+    )
+
+
+def test_an_unknown_type_degrades_instead_of_rejecting(context: ToolContext) -> None:
+    """类型猜错不该让写入失败。
+
+    真实案例：调用方把标签当类型传了 `project-status`，整条记录因此写不进来。
+    写入永不失败的优先级高于类型严格——类型是元数据，正文才是要保住的东西。
+    """
+    result = call_tool(
+        context, "remember", {"body": "类型猜错也要能写进来", "type": "project-status"}
+    )
+
+    assert result["record_type"] == "note"
+
+
 def test_remember_works_without_any_model(context: ToolContext) -> None:
     """写入永不失败：本机没有模型时，MCP 写入路径同样必须通。"""
     result = call_tool(context, "remember", {"body": "模型没启动也要能写"})
