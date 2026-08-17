@@ -16,7 +16,7 @@ from typing import Any
 
 from engram.config import load_config
 from engram.db import connect
-from engram.domain import RecordDraft
+from engram.domain import RECORD_TYPES, RecordDraft
 from engram.errors import InvalidInputError
 from engram.migrations import migrate
 from engram.repository import RecordRepository
@@ -123,11 +123,16 @@ def _remember(context: ToolContext, arguments: dict) -> dict[str, object]:
         raise InvalidInputError(
             "projects must be a list of strings", context={"argument": "projects"}
         )
+    # 类型猜错就降级，不拒绝：类型是元数据，正文才是要保住的东西。调用方
+    # 很容易把标签当类型传（`project-status` 这类），为此丢掉整条内容不值得。
+    record_type = arguments.get("type") or "note"
+    if record_type not in RECORD_TYPES:
+        record_type = "note"
     record = context.repository.create(
         RecordDraft(
             title=arguments.get("title") or "",
             body=body,
-            record_type=arguments.get("type") or "note",
+            record_type=record_type,
             projects=tuple(str(project) for project in projects),
             source_agent=arguments.get("agent") or "mcp",
         )
@@ -213,7 +218,11 @@ TOOLS = {
                 },
                 "type": {
                     "type": "string",
-                    "description": "记录类型，默认 note",
+                    "enum": sorted(RECORD_TYPES),
+                    "description": (
+                        "记录类型，默认 note。这不是标签——主题分类由系统裁决，"
+                        "不要在这里传领域或标签名。"
+                    ),
                 },
                 "agent": {
                     "type": "string",
