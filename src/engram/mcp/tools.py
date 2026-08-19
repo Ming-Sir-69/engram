@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,7 @@ class ToolContext:
     repository: RecordRepository
     search: SearchService
     offline: bool = False
+    _db_identity: tuple[int, int] | None = None
 
     @classmethod
     def open(cls, *, data_dir: Path | str | None = None, offline: bool = False) -> ToolContext:
@@ -54,6 +56,34 @@ class ToolContext:
             search=SearchService(connection),
             offline=offline,
         )
+
+    def ensure_live(self) -> bool:
+        """库文件被替换（inode 变化）时重连真实库，返回是否发生了重连。
+
+        MCP 是长连接进程：库文件在外部被 rm+cp 替换（如恢复操作）后，
+        旧连接持有的是已断链文件的 fd，写入进入幽灵库——返回成功但永不
+        落盘，进程退出后蒸发（2026-08-17 事故的另一半原因）。
+
+        一次 stat 即可识别：替换必然改变 inode，而 checkpoint 原位写入、
+        inode 不变，因此无误报（已经隔离实验验证）。
+        """
+        try:
+            identity = os.stat(self.config.db_path)
+        except OSError:
+            # 卷暂时不可用等情形：交给既有错误路径，不在这里发明行为
+            return False
+        current = (identity.st_dev, identity.st_ino)
+        if self._db_identity is None:
+            self._db_identity = current
+            return False
+        if current == self._db_identity:
+            return False
+        connection = connect(self.config.db_path)
+        migrate(connection)
+        self.repository = RecordRepository(connection)
+        self.search = SearchService(connection)
+        self._db_identity = current
+        return True
 
     def _vector(self):
         from engram.embedding import DeterministicEmbedder, OllamaEmbedder
@@ -294,4 +324,9 @@ def call_tool(context: ToolContext, name: str, arguments: dict) -> dict[str, obj
             "unknown tool",
             context={"tool": name, "supported": sorted(TOOLS)},
         )
-    return tool["handler"](context, arguments or {})
+    reconnected = context.ensure_live()
+    result = tool["handler"](context, arguments or {})
+    if reconnected and isinstance(result, dict):
+        # 告诉调用方：刚发生了一次幽灵重连，此前的写入可能没落盘
+        result["reconnected"] = True
+    return result
