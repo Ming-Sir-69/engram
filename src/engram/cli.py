@@ -9,7 +9,7 @@ from pathlib import Path
 from engram.config import load_config
 from engram.db import connect
 from engram.domain import RecordDraft
-from engram.errors import EngramError, exit_code_for
+from engram.errors import EngramError, InvalidInputError, exit_code_for
 from engram.migrations import migrate
 from engram.repository import RecordRepository
 from engram.search import SearchService
@@ -92,6 +92,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     serve_mcp = sub.add_parser("mcp")
     serve_mcp.add_argument("--offline", action="store_true")
+
+    curate = sub.add_parser("curate").add_subparsers(
+        dest="curate_command", required=True
+    )
+    curate_apply = curate.add_parser("apply")
+    curate_apply.add_argument("ops_file")
+    # 默认 dry-run：整理是高影响操作，执行必须显式说出来。
+    curate_apply.add_argument("--apply", action="store_true")
 
     sub.add_parser("status")
     return parser
@@ -275,6 +283,29 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             _emit(
                 collect_status(repository=repository, data_dir=config.data_dir),
+                human=args.human,
+            )
+            return 0
+        if args.command == "curate":
+            from engram.curate import apply_ops
+
+            try:
+                document = json.loads(
+                    Path(args.ops_file).read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError) as error:
+                raise InvalidInputError(
+                    "cannot read ops file",
+                    context={"path": args.ops_file, "error": str(error)},
+                ) from error
+            ops = document.get("ops") if isinstance(document, dict) else document
+            _emit(
+                apply_ops(
+                    repository=repository,
+                    ops=ops,
+                    data_dir=config.data_dir,
+                    apply=args.apply,
+                ),
                 human=args.human,
             )
             return 0
