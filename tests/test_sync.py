@@ -151,6 +151,38 @@ def test_index_reports_what_the_library_holds_without_the_contents(
     assert len(text) < sum(len(f"正文 {i}" * 50) for i in range(3))
 
 
+def test_index_truncates_tag_list_and_reports_the_remainder(
+    tmp_path: Path, repository: RecordRepository
+) -> None:
+    """标签段最多列 15 个、长尾用计数概括；领域段不截断。
+
+    索引常驻每个调用方的上下文，标签长尾（57% 只用一次）会让地图
+    无界膨胀，把它抵消掉。
+    """
+    record = repository.create(RecordDraft(title="t", body="b"))
+    for i in range(20):
+        repository.connection.execute(
+            "INSERT INTO facets(record_id, kind, value, provenance) "
+            "VALUES (?, 'tag', ?, 'model')",
+            (record.record_id, f"tag{i:02d}"),
+        )
+        repository.connection.execute(
+            "INSERT INTO facets(record_id, kind, value, provenance) "
+            "VALUES (?, 'domain', ?, 'model')",
+            (record.record_id, f"domain{i:02d}"),
+        )
+    out = tmp_path / "_index.md"
+
+    export_index(repository=repository, out_file=out)
+
+    text = out.read_text(encoding="utf-8")
+    tag_line = next(line for line in text.splitlines() if "tag00" in line)
+    assert tag_line.count("tag") == 15
+    assert "其余 5 个标签" in tag_line
+    domain_line = next(line for line in text.splitlines() if "domain00" in line)
+    assert domain_line.count("domain") == 20
+
+
 def test_index_is_written_on_every_write(tmp_path: Path, monkeypatch) -> None:
     """索引常驻上下文，过时的地图比没有更糟——必须随写入自动更新。"""
     index = tmp_path / "rules" / "_index.md"

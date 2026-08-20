@@ -155,9 +155,26 @@ def test_links_are_created_between_similar_records(context) -> None:
     service = build_service(repository, store, embedder)
     repository.create(RecordDraft(title="人因工程", body="负荷 评估 标准"))
     service.drain(now="2026-08-15T00:00:00Z")
-    repository.create(RecordDraft(title="人因分析", body="负荷 评估 测量"))
+    repository.create(RecordDraft(title="人因工程", body="负荷 评估 标准 方法"))
     service.drain(now="2026-08-15T00:10:00Z")
     total = repository.connection.execute(
         "SELECT COUNT(*) FROM record_links"
     ).fetchone()[0]
     assert total >= 2
+
+
+def test_low_score_neighbor_does_not_create_link(context, monkeypatch) -> None:
+    repository, store = context
+    embedder = DeterministicEmbedder(dimensions=8)
+    service = build_service(repository, store, embedder)
+    first = repository.create(RecordDraft(title="人因工程", body="负荷 评估"))
+    service.drain(now="2026-08-15T00:00:00Z")
+    repository.create(RecordDraft(title="无关内容", body="完全不相关"))
+    monkeypatch.setattr(
+        store, "neighbors", lambda *args, **kwargs: [(first.record_id, 0.3)]
+    )
+    service.drain(now="2026-08-15T00:10:00Z")
+    total = repository.connection.execute(
+        "SELECT COUNT(*) FROM record_links"
+    ).fetchone()[0]
+    assert total == 0
