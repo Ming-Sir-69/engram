@@ -271,15 +271,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "status":
-            payload: dict[str, object] = {
-                "records": repository.count(),
-                "backlog": repository.backlog(),
-                "data_dir": str(config.data_dir),
-            }
-            payload["vectors"] = connection.execute(
-                "SELECT COUNT(*) FROM embeddings"
-            ).fetchone()[0]
-            _emit(payload, human=args.human)
+            from engram.status import collect_status
+
+            _emit(
+                collect_status(repository=repository, data_dir=config.data_dir),
+                human=args.human,
+            )
             return 0
     except EngramError as error:
         problem = error.to_problem(instance=instance).to_dict()

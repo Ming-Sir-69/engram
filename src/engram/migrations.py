@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from engram.db import write_transaction
 from engram.errors import SchemaIncompatibleError
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _MIGRATION_1 = """
 CREATE TABLE records (
@@ -122,7 +122,25 @@ def _apply_1(connection: sqlite3.Connection) -> None:
         connection.execute(statement)
 
 
-MIGRATIONS: Mapping[int, Callable[[sqlite3.Connection], None]] = {1: _apply_1}
+_MIGRATION_2 = """
+CREATE TABLE meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"""
+
+
+def _apply_2(connection: sqlite3.Connection) -> None:
+    # curation 状态（last_curate_at / last_curate_count）放在库内而不是
+    # sidecar：与 curate 执行同事务、随库备份，不需要额外的原子写代码。
+    for statement in _statements(_MIGRATION_2):
+        connection.execute(statement)
+
+
+MIGRATIONS: Mapping[int, Callable[[sqlite3.Connection], None]] = {
+    1: _apply_1,
+    2: _apply_2,
+}
 
 
 def current_version(connection: sqlite3.Connection) -> int:
