@@ -278,3 +278,24 @@ def test_curate_set_tag_on_missing_record_exits_65(capsys, tmp_path: Path) -> No
     )
     code = main(["--data-dir", str(tmp_path), "curate", "apply", ops_file, "--apply"])
     assert code == 65
+
+
+def test_curate_apply_refreshes_derived_index(
+    capsys, tmp_path: Path, monkeypatch
+) -> None:
+    """curate 改了 facets 就必须同步派生层，否则索引地图会停留在旧标签上。"""
+    index = tmp_path / "rules" / "_index.md"
+    monkeypatch.setenv("ENGRAM_INDEX_PATH", str(index))
+    _, first = run(capsys, tmp_path, "record", "create", "--title", "a", "--body", "a")
+    db = _open_db(tmp_path)
+    _tag(db, first["record_id"], "stale-tag")
+    # 先把含旧标签的索引写出来，确保后续断言测的是 curate 的同步
+    run(capsys, tmp_path, "export", "index", "--out", str(index))
+    assert "stale-tag" in index.read_text(encoding="utf-8")
+    ops_file = _write_ops(tmp_path, [{"op": "delete_tag", "value": "stale-tag"}])
+
+    code, payload = run(capsys, tmp_path, "curate", "apply", ops_file, "--apply")
+
+    assert code == 0
+    assert payload["applied"] is True
+    assert "stale-tag" not in index.read_text(encoding="utf-8")
