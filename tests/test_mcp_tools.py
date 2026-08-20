@@ -211,6 +211,14 @@ def test_status_reports_counts(context: ToolContext) -> None:
     assert "vectors" in status
 
 
+def test_status_reports_evolution_triggers(context: ToolContext) -> None:
+    """curation_due / stage2_ready 是状态机：每个 Agent 调 status 都该看到。"""
+    status = call_tool(context, "status", {})
+    assert status["curation_due"]["due"] is True  # 从未整理过
+    assert status["stage2_ready"]["ready"] is False
+    assert "anchors_path" in status["stage2_ready"]
+
+
 def test_unknown_tool_is_rejected(context: ToolContext) -> None:
     with pytest.raises(InvalidInputError):
         call_tool(context, "summon", {})

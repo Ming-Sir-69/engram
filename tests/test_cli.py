@@ -75,6 +75,15 @@ def test_status_reports_backlog(capsys, tmp_path: Path) -> None:
     assert payload["backlog"]["pending"] == 1
 
 
+def test_status_reports_evolution_triggers(capsys, tmp_path: Path) -> None:
+    code, payload = run(capsys, tmp_path, "status")
+    assert code == 0
+    assert payload["curation_due"]["due"] is True
+    assert payload["curation_due"]["reason"] == "never_curated"
+    assert payload["stage2_ready"]["ready"] is False
+    assert payload["stage2_ready"]["anchors_path"].endswith("eval-anchors.jsonl")
+
+
 def test_create_reports_backlog_in_band(capsys, tmp_path: Path) -> None:
     _, payload = run(capsys, tmp_path, "record", "create", "--title", "t", "--body", "b")
     assert payload["backlog"]["pending"] >= 1

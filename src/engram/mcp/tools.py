@@ -219,13 +219,11 @@ def _get(context: ToolContext, arguments: dict) -> dict[str, object]:
 
 
 def _status(context: ToolContext, arguments: dict) -> dict[str, object]:
-    connection = context.repository.connection
-    return {
-        "records": context.repository.count(),
-        "backlog": context.repository.backlog(),
-        "vectors": connection.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0],
-        "data_dir": str(context.config.data_dir),
-    }
+    from engram.status import collect_status
+
+    return collect_status(
+        repository=context.repository, data_dir=context.config.data_dir
+    )
 
 
 TOOLS = {

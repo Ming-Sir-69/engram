@@ -26,7 +26,26 @@ def test_fresh_database_has_all_tables(tmp_path: Path) -> None:
         "embeddings",
         "records_fts",
         "schema_migrations",
+        "meta",
     } <= names
+
+
+def test_v1_database_migrates_to_v2_with_meta_table(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "engram.sqlite3")
+    migrate(connection, target=1)
+    assert current_version(connection) == 1
+
+    result = migrate(connection)
+
+    assert result.applied == (2,)
+    assert current_version(connection) == SCHEMA_VERSION
+    names = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+    assert "meta" in names
 
 
 def test_wal_and_foreign_keys_enabled(tmp_path: Path) -> None:
