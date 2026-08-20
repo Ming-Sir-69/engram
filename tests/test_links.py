@@ -59,3 +59,34 @@ def test_self_link_is_ignored(repository: RecordRepository) -> None:
 def test_empty_neighbors_write_nothing(repository: RecordRepository) -> None:
     record = repository.create(RecordDraft(title="a", body="a"))
     assert build_links(repository.connection, record.record_id, []) == 0
+
+
+def test_low_score_neighbor_writes_nothing(repository: RecordRepository) -> None:
+    first = repository.create(RecordDraft(title="a", body="a"))
+    second = repository.create(RecordDraft(title="b", body="b"))
+    written = build_links(
+        repository.connection, first.record_id, [(second.record_id, 0.49)]
+    )
+    assert written == 0
+    total = repository.connection.execute(
+        "SELECT COUNT(*) FROM record_links"
+    ).fetchone()[0]
+    assert total == 0
+
+
+def test_threshold_boundary_score_is_written(repository: RecordRepository) -> None:
+    first = repository.create(RecordDraft(title="a", body="a"))
+    second = repository.create(RecordDraft(title="b", body="b"))
+    written = build_links(
+        repository.connection, first.record_id, [(second.record_id, 0.5)]
+    )
+    assert written == 2
+
+
+def test_min_score_can_be_overridden(repository: RecordRepository) -> None:
+    first = repository.create(RecordDraft(title="a", body="a"))
+    second = repository.create(RecordDraft(title="b", body="b"))
+    written = build_links(
+        repository.connection, first.record_id, [(second.record_id, 0.4)], min_score=0.3
+    )
+    assert written == 2

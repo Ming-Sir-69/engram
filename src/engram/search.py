@@ -11,6 +11,9 @@ if TYPE_CHECKING:  # 仅用于类型标注：运行时不加载向量与模型�
 
 EXCERPT_LIMIT = 200
 RRF_K = 60
+LINK_MIN_SCORE = 0.5
+LINK_EXPANSION_ALPHA = 0.5
+LINK_EXPANSION_MAX_EDGES = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +148,16 @@ class SearchService:
         ordered = sorted(
             fused.values(), key=lambda item: float(item["score"]), reverse=True
         )
+        seed_ids = [
+            entry["hit"].record_id
+            for entry in ordered[:limit]
+            if isinstance(entry["hit"], SearchHit)
+        ]
+        if seed_ids:
+            self._expand_along_links(fused, seed_ids)
+            ordered = sorted(
+                fused.values(), key=lambda item: float(item["score"]), reverse=True
+            )
         results: list[SearchHit] = []
         for entry in ordered[:limit]:
             base = entry["hit"]
@@ -161,3 +174,54 @@ class SearchService:
                 )
             )
         return results
+
+    def _expand_along_links(
+        self, fused: dict[str, dict[str, object]], seed_ids: list[str]
+    ) -> None:
+        """沿高质量边把近邻捞回候选集（一跳扩展）。
+
+        建边发生在写入期、检索从不读取的话，链接网络就只是摆设——这里让它
+        参与检索。贡献刻意压低（alpha * link_score / RRF_K ≈ 单通道第 3 名），
+        能捞回邻居但压不过双通道直接命中。单条批量 SQL，无 N+1。
+        """
+        placeholders = ",".join("?" for _ in seed_ids)
+        rows = self.connection.execute(
+            f"""
+            SELECT l.source_id AS source_id,
+                   l.target_id AS target_id,
+                   l.score AS link_score,
+                   r.title AS title,
+                   r.body AS body
+            FROM record_links AS l
+            JOIN records AS r ON r.record_id = l.target_id
+            WHERE l.source_id IN ({placeholders})
+              AND l.relation = 'related_to'
+              AND l.score >= ?
+              AND r.status = 'active'
+            ORDER BY l.source_id, l.score DESC
+            """,
+            (*seed_ids, LINK_MIN_SCORE),
+        ).fetchall()
+        used: dict[str, int] = {}
+        for row in rows:
+            source = row["source_id"]
+            if used.get(source, 0) >= LINK_EXPANSION_MAX_EDGES:
+                continue
+            used[source] = used.get(source, 0) + 1
+            contribution = LINK_EXPANSION_ALPHA * float(row["link_score"]) / RRF_K
+            entry = fused.get(row["target_id"])
+            if entry is not None:
+                entry["score"] = float(entry["score"]) + contribution
+                continue
+            fused[row["target_id"]] = {
+                "hit": SearchHit(
+                    record_id=row["target_id"],
+                    title=row["title"],
+                    excerpt=row["body"][:EXCERPT_LIMIT],
+                    score=0.0,
+                    vector_score=float(row["link_score"]),
+                ),
+                "score": contribution,
+                "kw": 0.0,
+                "vec": float(row["link_score"]),
+            }

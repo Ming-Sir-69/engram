@@ -20,6 +20,7 @@ from engram.errors import InvalidInputError
 from engram.repository import RecordRepository
 
 DERIVED_MARKER = "<!-- engram: derived view, do not edit -->"
+INDEX_TAG_LIMIT = 15
 
 
 def _is_derived(path: Path) -> bool:
@@ -136,7 +137,16 @@ def export_index(*, repository: RecordRepository, out_file: Path) -> dict[str, i
             continue
         lines.append(f"## {heading}")
         lines.append("")
-        lines.append("、".join(f"{row['value']} {row['n']}" for row in rows))
+        # 这份地图常驻每个调用方的上下文，标签长尾会让它无界膨胀；
+        # 只列头部，其余用计数概括。领域数量少且稳定，不截断。
+        if kind == "tag" and len(rows) > INDEX_TAG_LIMIT:
+            shown, rest = rows[:INDEX_TAG_LIMIT], rows[INDEX_TAG_LIMIT:]
+            lines.append(
+                "、".join(f"{row['value']} {row['n']}" for row in shown)
+                + f"，其余 {len(rest)} 个标签"
+            )
+        else:
+            lines.append("、".join(f"{row['value']} {row['n']}" for row in rows))
         lines.append("")
 
     out_file.parent.mkdir(parents=True, exist_ok=True)
