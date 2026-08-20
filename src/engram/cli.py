@@ -299,15 +299,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     context={"path": args.ops_file, "error": str(error)},
                 ) from error
             ops = document.get("ops") if isinstance(document, dict) else document
-            _emit(
-                apply_ops(
-                    repository=repository,
-                    ops=ops,
-                    data_dir=config.data_dir,
-                    apply=args.apply,
-                ),
-                human=args.human,
+            payload = apply_ops(
+                repository=repository,
+                ops=ops,
+                data_dir=config.data_dir,
+                apply=args.apply,
             )
+            if args.apply:
+                # curate 改了 facets/链接，派生层必须同步，否则索引地图
+                # 会停留在旧标签上直到下一次写入。
+                sync = sync_derived(config=config, repository=repository)
+                if sync is not None:
+                    payload["sync"] = sync
+            _emit(payload, human=args.human)
             return 0
     except EngramError as error:
         problem = error.to_problem(instance=instance).to_dict()
