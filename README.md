@@ -59,7 +59,7 @@ engram search "查询词" --mode hybrid --top-k 5
 engram status
 ```
 
-所有命令默认输出紧凑 JSON，便于 Agent 解析；加 `--human` 输出便于阅读的格式。
+所有命令默认输出紧凑 JSON，便于 Agent 解析；顶层参数 `--human` 应放在子命令前，例如 `engram --human status`，输出便于阅读的格式。
 
 ## 配置
 
