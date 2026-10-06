@@ -143,6 +143,8 @@ export ENGRAM_INDEX_PATH=~/.claude/rules/second-brain/_index.md
 engram bench recall --gold gold.json --mode hybrid --top-k 5 --min-hits 28
 ```
 
+`gold.json` 是需要用户自行准备的问题集路径；当前固定 HEAD 的文件树未包含该文件。`--min-hits 28` 仅为例示阈值，应按自备问题集调整；本次文档修订未实际运行评测。
+
 ## 接入 AI Agent（MCP）
 
 以 stdio MCP 服务运行，供 Claude Code、Codex 等宿主共享同一个知识库：
@@ -152,6 +154,8 @@ engram mcp
 ```
 
 宿主配置（以 Claude Code 的 `.mcp.json` 为例）：
+
+下面的裸 `"command": "engram"` 仅适用于宿主启动环境的 PATH 已能找到 `engram` 可执行文件的情况；宿主不会自动激活仓库的 `.venv`。通过 `uv sync` 安装的用户应将 `command` 填为本机该仓库的 `.venv/bin/engram` 实际绝对路径，例如 `<仓库绝对路径>/.venv/bin/engram`。这里的占位符必须替换，不能直接复制。
 
 ```json
 {
