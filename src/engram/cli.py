@@ -58,6 +58,8 @@ def _build_parser() -> argparse.ArgumentParser:
     drain = index.add_parser("drain")
     drain.add_argument("--limit", type=int, default=20)
     drain.add_argument("--offline", action="store_true")
+    rebuild = index.add_parser("rebuild")
+    rebuild.add_argument("--offline", action="store_true")
 
     migrate_command = sub.add_parser("migrate").add_subparsers(
         dest="migrate_command", required=True
@@ -92,6 +94,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     serve_mcp = sub.add_parser("mcp")
     serve_mcp.add_argument("--offline", action="store_true")
+    serve_mcp.add_argument("--profile", choices=["default", "claude"], default="default")
+    serve_mcp.add_argument(
+        "--transport", choices=["stdio", "streamable-http", "sse"], default="stdio"
+    )
+    serve_mcp.add_argument("--host", default="127.0.0.1")
+    serve_mcp.add_argument("--port", type=int, default=8768)
+    serve_mcp.add_argument("--public-url", default=None)
+    serve_mcp.add_argument("--loopback-no-auth", action="store_true")
 
     curate = sub.add_parser("curate").add_subparsers(
         dest="curate_command", required=True
@@ -111,16 +121,17 @@ def _vector_components(config, *, offline: bool, connection):
     这里刻意使用延迟导入：纯写入路径（record create）不应加载嵌入与
     向量模块，从而在依赖层面保证模型不可用绝不影响写入。
     """
-    from engram.embedding import DeterministicEmbedder, OllamaEmbedder
+    from engram.embedding import DeterministicEmbedder, MLXEmbedder, SharedMLXEmbedder
     from engram.vectors import VectorStore
 
     if offline:
         embedder = DeterministicEmbedder(dimensions=64)
     else:
-        embedder = OllamaEmbedder(
-            model=config.embedding_model,
-            dimensions=config.embedding_dimensions,
-            base_url=config.ollama_base_url,
+        embedder = SharedMLXEmbedder(
+            MLXEmbedder(
+                model_path=config.model_path(config.embedding_model),
+                dimensions=config.embedding_dimensions,
+            )
         )
     store = VectorStore(connection, dimensions=embedder.dimensions)
     return embedder, store
@@ -128,6 +139,26 @@ def _vector_components(config, *, offline: bool, connection):
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    if args.command == "mcp" and args.transport != "stdio":
+        try:
+            from engram.mcp.remote import run_remote
+        except ImportError:
+            print("HTTP/SSE 需要可选依赖：uv sync --extra remote", file=sys.stderr)
+            return 2
+        try:
+            run_remote(
+                data_dir=args.data_dir,
+                offline=args.offline,
+                profile=args.profile,
+                host=args.host,
+                port=args.port,
+                public_url=args.public_url,
+                loopback_no_auth=args.loopback_no_auth,
+            )
+        except ValueError as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        return 0
     config = load_config(data_dir=args.data_dir)
     connection = connect(config.db_path)
     migrate(connection)
@@ -156,7 +187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(repository.get(args.record_id).to_dict(), human=args.human)
             return 0
         if args.command == "index" and args.index_command == "drain":
-            from engram.classify import Classifier, OllamaLabelModel
+            from engram.classify import Classifier, MLXLabelModel
             from engram.enrich import EnrichmentService
 
             embedder, store = _vector_components(
@@ -167,9 +198,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             label_model = (
                 None
                 if args.offline
-                else OllamaLabelModel(
-                    model=config.classifier_model,
-                    base_url=config.ollama_base_url,
+                else MLXLabelModel(
+                    model_path=config.model_path(config.classifier_model),
                 )
             )
             service = EnrichmentService(
@@ -180,6 +210,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 generation=f"{embedder.model}-{embedder.dimensions}",
             )
             _emit(service.drain(limit=args.limit).to_dict(), human=args.human)
+            return 0
+        if args.command == "index" and args.index_command == "rebuild":
+            from engram.embedding import DeterministicEmbedder, MLXEmbedder
+            from engram.reindex import rebuild
+
+            embedder = (
+                DeterministicEmbedder(dimensions=64)
+                if args.offline
+                else MLXEmbedder(
+                    model_path=config.model_path(config.embedding_model),
+                    dimensions=config.embedding_dimensions,
+                )
+            )
+            _emit(rebuild(connection, embedder), human=args.human)
             return 0
         if args.command == "migrate" and args.migrate_command == "from-markdown":
             from engram.ingest.migrate import migrate_from_markdown
@@ -223,7 +267,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 search.store = store
 
                 def embed_query(text: str) -> list[float]:
-                    return embedder.embed([text])[0]
+                    return (
+                        embedder.embed_query(text)
+                        if hasattr(embedder, "embed_query")
+                        else embedder.embed([text])[0]
+                    )
 
             report = run_recall(
                 gold=load_gold(Path(args.gold)),
@@ -255,7 +303,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     config, offline=args.offline, connection=connection
                 )
                 search.store = store
-                vector = embedder.embed([args.query])[0]
+                vector = (
+                    embedder.embed_query(args.query)
+                    if hasattr(embedder, "embed_query")
+                    else embedder.embed([args.query])[0]
+                )
                 hits = (
                     search.vector(vector, limit=args.top_k)
                     if args.mode == "vector"
@@ -275,7 +327,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     repository=repository,
                     search=search,
                     offline=args.offline,
-                )
+                ),
+                profile=args.profile,
             )
             return 0
         if args.command == "status":

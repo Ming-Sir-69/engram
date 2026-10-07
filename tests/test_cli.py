@@ -103,9 +103,9 @@ def test_projects_are_accepted(capsys, tmp_path: Path) -> None:
         "--project",
         "engram",
         "--project",
-        "jarvis-lite",
+        "synthetic-project-b",
     )
-    assert payload["projects"] == ["engram", "jarvis-lite"]
+    assert payload["projects"] == ["engram", "synthetic-project-b"]
 
 
 # ---- curate：确定性整理执行器 ----
@@ -171,12 +171,13 @@ def test_curate_merge_tag_handles_conflicts_and_stamps_meta(
         "SELECT record_id, provenance, locked FROM facets WHERE value = 'beta' "
         "ORDER BY record_id"
     ).fetchall()
-    assert [row["record_id"] for row in rows] == [
+    assert {row["record_id"] for row in rows} == {
         first["record_id"],
         second["record_id"],
-    ]
+    }
     # first 原有的 beta 保持不动；合并进来的行标记为人工裁决
-    assert rows[1]["provenance"] == "human"
+    by_id = {row["record_id"]: row for row in rows}
+    assert by_id[second["record_id"]]["provenance"] == "human"
     assert db.execute(
         "SELECT COUNT(*) FROM facets WHERE value = 'alpha'"
     ).fetchone()[0] == 0

@@ -1,19 +1,34 @@
-# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 .pytest_cache/
 .ruff_cache/
-
-# 真实数据绝不入库（数据目录本身也在仓库之外）
-*.sqlite3
-*.sqlite3-wal
-*.sqlite3-shm
-data/
-runtime/
-
-# 开发过程文件不进公开仓库：spec、实施计划、验收证据
-docs/superpowers/
-
-# macOS
+.worktrees/
 .DS_Store
+*.sqlite*
+*.db
+*.db-*
+*.jsonl
+*.log
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+ops/
+runtime/
+data/
+records/
+memory/
+derived/
+.state/
+.cache/
+logs/
+artifacts/
+reports/
+work/
+deliverables/
+models/
+weights/
+adapters/

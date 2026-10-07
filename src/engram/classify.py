@@ -5,9 +5,9 @@ import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Protocol
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
 from engram.domain import Facet, Record
 from engram.errors import ModelUnavailableError
@@ -50,45 +50,53 @@ class LabelModel(Protocol):
     def label(self, title: str, body: str) -> dict[str, list[str]]: ...
 
 
-LabelTransport = Callable[[str, dict[str, object]], dict[str, object]]
+@lru_cache(maxsize=1)
+def _load_mlx_classifier(path: str):
+    from mlx_lm import load
+
+    return load(path)
 
 
-def _is_local(url: str) -> bool:
-    return urlparse(url).hostname in {"127.0.0.1", "localhost", "::1"}
-
-
-def _chat_transport(url: str, payload: dict[str, object]) -> dict[str, object]:
-    request = Request(
-        url,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urlopen(request, timeout=120) as response:
-        result = json.loads(response.read().decode("utf-8"))
-    return result if isinstance(result, dict) else {}
-
-
-class OllamaLabelModel:
-    """本地小模型分类器。
-
-    只在 kNN 找不到足够近邻时才被调用，因此调用量会随知识库增长而下降。
-    模型不可达抛 `ModelUnavailableError`（可重试）；输出不合法则返回空标签，
-    由调用方降级到默认层——同样的输入不会得到不同的坏输出，重试无意义。
-    """
+class MLXLabelModel:
+    """本地 MLX 分类器，仅当规则与近邻都无法分类时加载。"""
 
     def __init__(
         self,
         *,
-        model: str = "qwen3.5:4b",
-        base_url: str = "http://127.0.0.1:11434",
-        transport: LabelTransport | None = None,
+        model_path: Path,
+        runner: Callable[[str], str] | None = None,
     ) -> None:
-        if not _is_local(base_url):
-            raise ValueError("classifier base_url must be loopback-only")
-        self.model = model
-        self.base_url = base_url.rstrip("/")
-        self._transport = transport or _chat_transport
+        self.model_path = Path(model_path)
+        self._runner = runner
+
+    def _generate(self, prompt: str) -> str:
+        if not (self.model_path / "config.json").is_file():
+            raise ModelUnavailableError(
+                f"local MLX classifier model is missing: {self.model_path}"
+            )
+        try:
+            from mlx_lm import generate
+            from mlx_lm.sample_utils import make_sampler
+
+            model, tokenizer = _load_mlx_classifier(str(self.model_path))
+            formatted = tokenizer.apply_chat_template(
+                [{"role": "user", "content": prompt}],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+            return generate(
+                model,
+                tokenizer,
+                prompt=formatted,
+                max_tokens=128,
+                sampler=make_sampler(temp=0),
+                verbose=False,
+            )
+        except (ImportError, OSError) as exc:
+            raise ModelUnavailableError(
+                f"local MLX classifier unavailable: {type(exc).__name__}"
+            ) from exc
 
     def label(self, title: str, body: str) -> dict[str, list[str]]:
         prompt = _PROMPT.format(
@@ -96,30 +104,9 @@ class OllamaLabelModel:
             title=title[:200],
             body=body[:1500],
         )
+        response = (self._runner or self._generate)(prompt)
         try:
-            response = self._transport(
-                f"{self.base_url}/api/chat",
-                {
-                    "model": self.model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "format": "json",
-                    "stream": False,
-                    # 必须关闭思考链：qwen3.5:4b 这类模型开启后会为一次分类
-                    # 生成上万字推理，实测 170.7s 对 2.1s（81 倍），且超长
-                    # 思考会让最终 content 更容易跑偏成空值。分类是封闭集合
-                    # 上的选择题，不需要推理链。不支持该参数的服务端会忽略它。
-                    "think": False,
-                    "options": {"temperature": 0},
-                },
-            )
-        except OSError as exc:
-            raise ModelUnavailableError(
-                f"ollama chat endpoint unreachable: {type(exc).__name__}"
-            ) from exc
-        content = response.get("message", {})
-        text = content.get("content", "") if isinstance(content, dict) else ""
-        try:
-            parsed = json.loads(text)
+            parsed = json.loads(response)
         except (TypeError, ValueError):
             return {"domains": [], "tags": []}
         if not isinstance(parsed, dict):

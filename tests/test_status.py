@@ -52,6 +52,14 @@ def test_recent_curation_is_not_due(context) -> None:
     assert payload["curation_due"]["due"] is False
 
 
+def test_status_does_not_stamp_curation_meta(context) -> None:
+    repository, data_dir = context
+
+    collect_status(repository=repository, data_dir=data_dir, now=NOW)
+
+    assert repository.connection.execute("SELECT * FROM meta").fetchall() == []
+
+
 def test_twenty_new_records_trigger_curation(context) -> None:
     repository, data_dir = context
     _stamp_curation(repository, at=NOW - timedelta(days=1), count=0)
@@ -64,13 +72,29 @@ def test_twenty_new_records_trigger_curation(context) -> None:
     assert due["new_records"] == 20
 
 
-def test_stale_curation_triggers_even_without_new_records(context) -> None:
+def test_stale_curation_is_not_due_without_new_records(context) -> None:
     repository, data_dir = context
     _stamp_curation(repository, at=NOW - timedelta(days=8), count=0)
     payload = collect_status(repository=repository, data_dir=data_dir, now=NOW)
     due = payload["curation_due"]
+    assert due["due"] is False
+    assert due["reason"] == "none"
+    assert due["days_since"] == 8
+
+
+def test_stale_curation_is_due_after_twenty_new_records(context) -> None:
+    repository, data_dir = context
+    _stamp_curation(repository, at=NOW - timedelta(days=8), count=0)
+    for index in range(20):
+        repository.create(RecordDraft(title=f"t{index}", body="b"))
+
+    due = collect_status(repository=repository, data_dir=data_dir, now=NOW)[
+        "curation_due"
+    ]
+
     assert due["due"] is True
-    assert due["reason"] == "age"
+    assert due["reason"] == "new_records"
+    assert due["days_since"] == 8
 
 
 def test_stage2_blocked_by_record_count(context) -> None:

@@ -6,10 +6,12 @@ schema、返回结构，以及"写入不依赖模型"这条底线在 MCP 路径�
 传输层单独测（见 test_mcp_server.py），这里只测纯粹的调用结果。
 """
 
+import sqlite3
 from pathlib import Path
 
 import pytest
 
+from engram.domain import RecordDraft
 from engram.errors import InvalidInputError, RecordNotFoundError
 from engram.mcp.tools import TOOLS, ToolContext, call_tool, tool_descriptors
 
@@ -20,7 +22,32 @@ def context(tmp_path: Path) -> ToolContext:
 
 
 def test_exposes_exactly_the_agreed_tools() -> None:
-    assert set(TOOLS) == {"remember", "recall", "get", "status"}
+    assert set(TOOLS) == {
+        "feedback",
+        "remember",
+        "recall",
+        "get",
+        "status",
+        "maintain",
+        "run_receipt",
+        "maintenance_candidates",
+        "inspect_record",
+        "source_improvement",
+        "engram_maintenance_status",
+        "engram_maintenance_catalog",
+        "engram_maintenance_read",
+    }
+    assert {x["name"] for x in tool_descriptors()} == {
+        "feedback",
+        "remember",
+        "recall",
+        "get",
+        "status",
+        "inspect_record",
+        "engram_maintenance_status",
+        "engram_maintenance_catalog",
+        "engram_maintenance_read",
+    }
 
 
 def test_every_descriptor_is_self_describing() -> None:
@@ -34,11 +61,41 @@ def test_every_descriptor_is_self_describing() -> None:
 
 
 def test_remember_returns_record_id_and_backlog(context: ToolContext) -> None:
-    result = call_tool(context, "remember", {"body": "折叠支架的限位结构"})
+    result = call_tool(context, "remember", {"body": "synthetic-prism channel=amber"})
     assert result["record_id"]
     # 积压要回给调用方：写入是即时的，语义补全是后续的，
     # 不告诉 Agent 就等于让它以为已经可被语义检索。
     assert "backlog" in result
+
+
+def test_feedback_submission_and_runtime_status(context: ToolContext) -> None:
+    item = call_tool(
+        context,
+        "feedback",
+        {
+            "action": "add",
+            "summary": "反馈收件箱应保留问题",
+            "category": "quality",
+        },
+    )
+    assert item["status"] == "open"
+    report = call_tool(context, "status", {"detail": "feedback"})
+    assert report["feedback"]["open"] == 1
+    assert report["events"]["calls"] >= 1
+
+
+def test_invalid_remember_records_reason_without_input(context: ToolContext):
+    from datetime import UTC, datetime, timedelta
+
+    from engram.feedback import FeedbackStore
+
+    with pytest.raises(InvalidInputError):
+        call_tool(context, "remember", {"body": ["private-body"]})
+    report = FeedbackStore(context.config.feedback_db_path).snapshot(now=datetime.now(UTC) + timedelta(seconds=1))
+    assert report["recent_errors"][0]["diagnostic"] == {
+        "code": "invalid_type", "field": "body", "input_type": "list"
+    }
+    assert "private-body" not in str(report)
 
 
 def test_remember_accepts_optional_context(context: ToolContext) -> None:
@@ -81,7 +138,7 @@ def test_remember_advertises_the_valid_types(context: ToolContext) -> None:
 def test_an_unknown_type_degrades_instead_of_rejecting(context: ToolContext) -> None:
     """类型猜错不该让写入失败。
 
-    真实案例：调用方把标签当类型传了 `project-status`，整条记录因此写不进来。
+    合成反例：标签字符串 `project-status` 不能使正文写入失败。
     写入永不失败的优先级高于类型严格——类型是元数据，正文才是要保住的东西。
     """
     result = call_tool(
@@ -222,3 +279,165 @@ def test_status_reports_evolution_triggers(context: ToolContext) -> None:
 def test_unknown_tool_is_rejected(context: ToolContext) -> None:
     with pytest.raises(InvalidInputError):
         call_tool(context, "summon", {})
+
+    assert not context.config.usage_db_path.exists()
+
+
+def test_successful_call_aggregates_usage_and_runs_one_daily_tick(
+    context: ToolContext,
+) -> None:
+    first = call_tool(context, "status", {})
+    second = call_tool(context, "status", {})
+
+    assert first["maintenance_warning"]["issues"] == [
+        {
+            "code": "curation_due",
+            "reason": "never_curated",
+            "new_records": 0,
+        }
+    ]
+    assert "maintenance_warning" not in second
+    connection = sqlite3.connect(context.config.usage_db_path)
+    connection.row_factory = sqlite3.Row
+    try:
+        usage = connection.execute("SELECT * FROM usage_daily").fetchone()
+        maintenance = connection.execute(
+            "SELECT state, records, vectors FROM maintenance_daily"
+        ).fetchall()
+    finally:
+        connection.close()
+    assert usage["tool"] == "status"
+    assert usage["variant"] == "default"
+    assert usage["calls"] == 2
+    assert usage["errors"] == 0
+    assert [tuple(row) for row in maintenance] == [("warning", 0, 0)]
+
+
+def test_failed_call_is_aggregated_without_claiming_daily_tick(
+    context: ToolContext,
+) -> None:
+    with pytest.raises(InvalidInputError):
+        call_tool(context, "remember", {"title": "missing body"})
+
+    connection = sqlite3.connect(context.config.usage_db_path)
+    try:
+        usage = connection.execute(
+            "SELECT calls, errors FROM usage_daily WHERE tool='remember'"
+        ).fetchone()
+        maintenance_count = connection.execute(
+            "SELECT COUNT(*) FROM maintenance_daily"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert usage == (1, 1)
+    assert maintenance_count == 0
+
+    assert "maintenance_warning" in call_tool(context, "status", {})
+
+
+def test_sidecar_failure_never_changes_the_main_result(
+    context: ToolContext, monkeypatch
+) -> None:
+    from engram import maintenance
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("sidecar unavailable")
+
+    monkeypatch.setattr(maintenance.UsageSidecar, "record_and_check", explode)
+
+    result = call_tool(context, "status", {})
+
+    assert result["records"] == 0
+    assert "maintenance_warning" not in result
+
+
+def test_failed_daily_snapshot_is_retried_on_the_next_successful_call(
+    context: ToolContext, monkeypatch
+) -> None:
+    from engram.maintenance import UsageSidecar
+
+    original = UsageSidecar.finish_daily
+    attempts = 0
+
+    def fail_once(self, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return False
+        return original(self, **kwargs)
+
+    monkeypatch.setattr(UsageSidecar, "finish_daily", fail_once)
+
+    first = call_tool(context, "status", {})
+    second = call_tool(context, "status", {})
+
+    assert "maintenance_warning" not in first
+    assert "maintenance_warning" in second
+    assert attempts == 2
+
+
+def test_daily_tick_only_reads_authoritative_state(context: ToolContext) -> None:
+    before = {
+        "meta": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM meta"
+        ).fetchone()[0],
+        "outbox": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM outbox_jobs"
+        ).fetchone()[0],
+        "facets": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM facets"
+        ).fetchone()[0],
+        "links": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM record_links"
+        ).fetchone()[0],
+        "embeddings": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM embeddings"
+        ).fetchone()[0],
+    }
+
+    call_tool(context, "status", {})
+
+    after = {
+        "meta": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM meta"
+        ).fetchone()[0],
+        "outbox": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM outbox_jobs"
+        ).fetchone()[0],
+        "facets": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM facets"
+        ).fetchone()[0],
+        "links": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM record_links"
+        ).fetchone()[0],
+        "embeddings": context.repository.connection.execute(
+            "SELECT COUNT(*) FROM embeddings"
+        ).fetchone()[0],
+    }
+    assert after == before
+
+
+def test_daily_tick_reports_missing_vectors_without_backlog(
+    context: ToolContext,
+) -> None:
+    context.repository.create(RecordDraft(title="t", body="b"))
+    context.repository.connection.execute("DELETE FROM outbox_jobs")
+
+    result = call_tool(context, "status", {})
+
+    codes = [issue["code"] for issue in result["maintenance_warning"]["issues"]]
+    assert codes == ["missing_vectors_without_backlog", "curation_due"]
+
+
+def test_source_gateway_requires_both_runtime_permissions(context, monkeypatch):
+    monkeypatch.delenv("ENGRAM_CLOUD_SOURCE_MAINTENANCE", raising=False)
+    assert "source_improvement" not in {x["name"] for x in tool_descriptors()}
+    with pytest.raises(InvalidInputError):
+        call_tool(context, "source_improvement", {"action": "status"})
+    monkeypatch.setenv("ENGRAM_CLOUD_SOURCE_MAINTENANCE", "1")
+    monkeypatch.delenv("ENGRAM_AUTONOMOUS_MAINTENANCE", raising=False)
+    assert "source_improvement" not in {x["name"] for x in tool_descriptors()}
+    with pytest.raises(InvalidInputError):
+        call_tool(context, "source_improvement", {"action": "status"})
+    monkeypatch.setenv("ENGRAM_AUTONOMOUS_MAINTENANCE", "1")
+    assert "source_improvement" in {x["name"] for x in tool_descriptors()}
