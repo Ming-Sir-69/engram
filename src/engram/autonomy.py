@@ -125,12 +125,13 @@ def inspect(context):
     }
 
 
-def _check(c):
-    c.enable_load_extension(True)
-    try:
-        sqlite_vec.load(c)
-    finally:
-        c.enable_load_extension(False)
+def _check(c, *, initialize_vector_extension=True):
+    if initialize_vector_extension:
+        c.enable_load_extension(True)
+        try:
+            sqlite_vec.load(c)
+        finally:
+            c.enable_load_extension(False)
     if [r[0] for r in c.execute("PRAGMA integrity_check(10)")] != ["ok"]:
         raise InvalidInputError("integrity gate failed")
     if c.execute("PRAGMA foreign_key_check").fetchone() is not None:
@@ -391,7 +392,9 @@ def maintain(context, args):
                 raise InvalidInputError(
                     "affected records exceed batch scope; split the plan"
                 )
-            _check(c)
+            # The extension was loaded before BEGIN. Re-registering its functions
+            # after FTS writes fails on some SQLite builds; keep both integrity gates.
+            _check(c, initialize_vector_extension=False)
             if c.execute("SELECT COUNT(*) FROM records").fetchone()[0] != count:
                 raise InvalidInputError("physical record deletion is forbidden")
             missing = c.execute(
