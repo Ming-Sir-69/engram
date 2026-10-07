@@ -1,12 +1,20 @@
 [project]
 name = "engram"
-version = "0.1.0"
+version = "0.4.0"
 description = "Local-first knowledge base with self-evolving taxonomy"
 requires-python = ">=3.13"
-dependencies = ["sqlite-vec>=0.1.9"]
+dependencies = [
+    "mlx-embeddings>=0.1.0",
+    "mlx-lm>=0.31.3",
+    "sqlite-vec>=0.1.9",
+]
+
+[project.optional-dependencies]
+remote = ["mcp>=1.30,<2", "uvicorn>=0.35,<1"]
 
 [project.scripts]
 engram = "engram.cli:main"
+mcp-feedback = "engram.feedback_cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.6"]

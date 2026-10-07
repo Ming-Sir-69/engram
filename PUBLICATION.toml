@@ -1,0 +1,11 @@
+[publication]
+schema = 1
+# The public release version is read from this dotted TOML field.
+# A separate public version can use PUBLICATION.toml and release.version in a [release] table.
+version_file = "pyproject.toml"
+version_key = "project.version"
+changelog = "CHANGELOG.md"
+evolution_dir = "docs/evolution"
+# All allowlisted files are subject to the maintenance version gate.
+# Add only documented public hosts; private IPs, tunnels and internal names remain forbidden.
+public_url_hosts = ["github.com", "docs.python.org", "pypi.org", "opensource.org", "spdx.org", "www.gnu.org", "json-schema.org", "files.pythonhosted.org", "huggingface.co", "api.github.com", "doi.org", "arxiv.org"]

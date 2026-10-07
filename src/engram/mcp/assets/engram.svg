@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Engram</title>
+  <desc id="desc">Engram shared knowledge symbol, drawn as three interlocking vector loops.</desc>
+  <rect width="256" height="256" rx="24" fill="#06155c"/>
+  <path d="M135 181C76 183 47 161 47 131C47 102 72 82 107 86" fill="none" stroke="#5bb7ff" stroke-width="31" stroke-linecap="round"/>
+  <path d="M116 93C169 77 205 110 193 145C184 173 153 187 119 172" fill="none" stroke="#6957ff" stroke-width="31" stroke-linecap="round"/>
+  <path d="M88 119C78 90 88 63 113 59C137 55 160 72 160 96C160 116 140 127 88 124C78 148 97 169 132 161" fill="none" stroke="#7ff2d7" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

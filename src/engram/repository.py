@@ -7,6 +7,11 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from engram.current_memory import (
+    normalize_corrections,
+    validate_corrections,
+    write_correction_links,
+)
 from engram.db import write_transaction
 from engram.domain import (
     RECORD_TYPES,
@@ -55,19 +60,95 @@ class RecordRepository:
         if not title and not body:
             raise InvalidInputError("title and body cannot both be empty")
         if draft.record_type not in RECORD_TYPES:
-            raise InvalidInputError(f"record_type must be one of {sorted(RECORD_TYPES)}")
+            raise InvalidInputError(
+                f"record_type must be one of {sorted(RECORD_TYPES)}"
+            )
         if not title:
             title = body.splitlines()[0][:80]
         digest = content_hash_for(title, body)
-        existing = self.connection.execute(
-            "SELECT record_id FROM records WHERE content_hash = ?", (digest,)
-        ).fetchone()
-        if existing is not None:
-            return self.get(existing["record_id"])
-
-        record_id = self._new_id()
+        attributes = dict(draft.attributes)
+        corrections = normalize_corrections(attributes.pop("corrections", None))
+        projects = tuple(
+            dict.fromkeys(
+                project.strip() for project in draft.projects if project.strip()
+            )
+        )
         timestamp = self._now()
         with write_transaction(self.connection) as tx:
+            # Dedupe and correction validation share the body transaction. A duplicate
+            # body may carry new project/correction evidence; it must not be lost.
+            existing = tx.execute(
+                "SELECT * FROM records WHERE content_hash = ?", (digest,)
+            ).fetchone()
+            record_id = (
+                existing["record_id"] if existing is not None else self._new_id()
+            )
+            validated = validate_corrections(tx, record_id, corrections)
+            if existing is not None:
+                stored = json.loads(existing["attributes_json"])
+                changed = False
+                for key, value in attributes.items():
+                    # A reimport/export may have different source line numbers.
+                    # Keep the original provenance instead of overwriting it or
+                    # rejecting an otherwise idempotent text import.
+                    if key not in stored:
+                        stored[key] = value
+                        changed = True
+                stored_corrections = list(stored.get("corrections", []))
+                for correction in validated:
+                    # A metadata-only target revision keeps this declaration
+                    # idempotent. A changed target content hash is new binding
+                    # evidence and must be retained rather than silently ignored.
+                    declaration = {
+                        key: value
+                        for key, value in correction.items()
+                        if key not in ("target_hash", "target_revision")
+                    }
+                    matches = [
+                        item
+                        for item in stored_corrections
+                        if {
+                            key: value
+                            for key, value in item.items()
+                            if key not in ("target_hash", "target_revision")
+                        }
+                        == declaration
+                        and item.get("target_hash") == correction["target_hash"]
+                    ]
+                    if matches:
+                        continue
+                    stored_corrections.append(correction)
+                    changed = True
+                if stored_corrections:
+                    stored["corrections"] = stored_corrections
+                for project in projects:
+                    cursor = tx.execute(
+                        "INSERT INTO record_projects(record_id, project) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                        (record_id, project),
+                    )
+                    changed = changed or cursor.rowcount > 0
+                write_correction_links(tx, record_id, stored_corrections)
+                if changed:
+                    revision = existing["revision"] + 1
+                    tx.execute(
+                        "UPDATE records SET attributes_json = ?, revision = ?, updated_at = ? WHERE record_id = ?",
+                        (
+                            json.dumps(stored, ensure_ascii=False, sort_keys=True),
+                            revision,
+                            timestamp,
+                            record_id,
+                        ),
+                    )
+                    tx.execute(
+                        "INSERT INTO revisions(record_id, revision, content_hash, changed_at, changed_by, summary) "
+                        "VALUES (?, ?, ?, ?, ?, 'metadata extended')",
+                        (record_id, revision, digest, timestamp, draft.source_agent),
+                    )
+                # Do not restore archived status, replace labels, or queue a duplicate
+                # embedding: metadata extension does not change the text.
+                return self.get(record_id)
+            if validated:
+                attributes["corrections"] = validated
             tx.execute(
                 """
                 INSERT INTO records(
@@ -81,20 +162,19 @@ class RecordRepository:
                     draft.record_type,
                     title,
                     body,
-                    json.dumps(
-                        dict(draft.attributes), ensure_ascii=False, sort_keys=True
-                    ),
+                    json.dumps(attributes, ensure_ascii=False, sort_keys=True),
                     timestamp,
                     timestamp,
                     draft.source_agent,
                     digest,
                 ),
             )
-            for project in dict.fromkeys(draft.projects):
+            for project in projects:
                 tx.execute(
                     "INSERT INTO record_projects(record_id, project) VALUES (?, ?)",
                     (record_id, project),
                 )
+            write_correction_links(tx, record_id, validated)
             tx.execute(
                 "INSERT INTO records_fts(record_id, tokens) VALUES (?, ?)",
                 (record_id, fts_document(f"{title}\n{body}")),
@@ -148,7 +228,9 @@ class RecordRepository:
         return tuple(row["project"] for row in rows)
 
     def count(self) -> int:
-        return int(self.connection.execute("SELECT COUNT(*) FROM records").fetchone()[0])
+        return int(
+            self.connection.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+        )
 
     def due_jobs(
         self, job_type: str, *, now: str | None = None, limit: int = 20

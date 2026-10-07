@@ -31,3 +31,30 @@ def test_config_is_frozen(tmp_path: Path) -> None:
     config = load_config(data_dir=tmp_path)
     with pytest.raises(AttributeError):
         config.data_dir = tmp_path  # type: ignore[misc]
+
+
+def test_usage_telemetry_defaults_to_runtime_sidecar(tmp_path: Path) -> None:
+    config = load_config(data_dir=tmp_path)
+
+    assert config.usage_db_path == tmp_path / "runtime" / "usage.sqlite3"
+    assert config.usage_telemetry_enabled is True
+    assert not config.usage_db_path.parent.exists()
+
+
+def test_usage_telemetry_can_be_disabled(tmp_path: Path) -> None:
+    config = load_config(
+        data_dir=tmp_path,
+        env={"ENGRAM_USAGE_TELEMETRY": "0"},
+    )
+
+    assert config.usage_telemetry_enabled is False
+    assert not config.usage_db_path.parent.exists()
+
+
+def test_only_zero_disables_usage_telemetry(tmp_path: Path) -> None:
+    config = load_config(
+        data_dir=tmp_path,
+        env={"ENGRAM_USAGE_TELEMETRY": "1"},
+    )
+
+    assert config.usage_telemetry_enabled is True

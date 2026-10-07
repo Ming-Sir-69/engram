@@ -1,9 +1,4 @@
-"""MCP stdio 传输层。
-
-传输自行实现而不引入官方 SDK：本项目只用 stdio，而 SDK 的体量几乎都在
-HTTP、OAuth 与遥测上——那与"完全本地"相悖，也让别人 clone 之后无法开箱即跑。
-代价是协议演进要自己跟，因此这里把握手、方法分发和错误映射逐条钉死。
-"""
+"""Synthetic MCP stdio protocol tests; no real knowledge or client state."""
 
 import io
 import json
@@ -52,7 +47,8 @@ def test_notifications_get_no_response(context: ToolContext) -> None:
 def test_tools_list_returns_descriptors(context: ToolContext) -> None:
     (response,) = _exchange(context, _request(2, "tools/list"))
     names = {tool["name"] for tool in response["result"]["tools"]}
-    assert names == {"remember", "recall", "get", "status"}
+    assert names == {"feedback", "remember", "recall", "get", "status", "inspect_record",
+                     "engram_maintenance_status", "engram_maintenance_catalog", "engram_maintenance_read"}
 
 
 def test_tools_call_wraps_result_as_text_content(context: ToolContext) -> None:
