@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-_BASE_TYPE = "https://engram.local/problems"
+_BASE_TYPE = "https://example.invalid/engram/problems"
 
 
 @dataclass(frozen=True, slots=True)

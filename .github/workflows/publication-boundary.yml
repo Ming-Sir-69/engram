@@ -1,0 +1,40 @@
+name: Public publication boundary
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  publication:
+    # These tests use only stdlib and synthetic temp trees. Implementation tests
+    # run in the project's separate workflow on its required public runner.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.13']
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PUBLICATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Synthetic publication boundary tests
+        run: python -m unittest discover -s tests -p test_publication_guard.py
+      - name: Validate public files and version evolution
+        shell: bash
+        run: |
+          if [[ -n "$PUBLICATION_BASE" && ! "$PUBLICATION_BASE" =~ ^0+$ ]]; then
+            python scripts/publication_check.py check --root . --base-ref "$PUBLICATION_BASE"
+          else
+            # Only initial creation has no previous public commit.
+            python scripts/publication_check.py check --root .
+          fi

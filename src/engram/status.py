@@ -11,7 +11,7 @@ curation_due 与 stage2_ready 是状态机而不是日历提醒：每次 status 
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from engram.repository import RecordRepository
 
 CURATE_NEW_RECORDS_THRESHOLD = 20
-CURATE_MAX_AGE = timedelta(days=7)
 STAGE2_MIN_RECORDS = 1000
 STAGE2_ANCHORS_FILE = "eval-anchors.jsonl"
 _TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -63,8 +62,6 @@ def _curation_due(
     elapsed = moment - datetime.strptime(last_at, _TIME_FORMAT).replace(tzinfo=UTC)
     if new_records >= CURATE_NEW_RECORDS_THRESHOLD:
         due, reason = True, "new_records"
-    elif elapsed >= CURATE_MAX_AGE:
-        due, reason = True, "age"
     else:
         due, reason = False, "none"
     return {

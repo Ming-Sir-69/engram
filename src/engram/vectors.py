@@ -29,6 +29,11 @@ class VectorStore:
         self.connection.enable_load_extension(False)
 
     def _ensure_table(self) -> None:
+        existing = self.connection.execute(
+            "SELECT sql FROM sqlite_master WHERE name='vec_records'"
+        ).fetchone()
+        if existing is not None and f"float[{self.dimensions}]" not in existing[0]:
+            raise ValueError("vector index dimensions changed; run engram index rebuild")
         self.connection.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS vec_records "
             f"USING vec0(record_id TEXT PRIMARY KEY, "

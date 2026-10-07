@@ -7,10 +7,9 @@ from pathlib import Path
 
 DEFAULT_DATA_DIR = Path.home() / "second-brain-data"
 DEFAULT_SOURCE_DIR = Path.home() / ".claude" / "rules" / "second-brain"
-DEFAULT_EMBEDDING_MODEL = "nomic-embed-text-v2-moe"
-DEFAULT_EMBEDDING_DIMENSIONS = 768
-DEFAULT_CLASSIFIER_MODEL = "qwen3.5:4b"
-DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-0.6B"
+DEFAULT_EMBEDDING_DIMENSIONS = 1024
+DEFAULT_CLASSIFIER_MODEL = "Qwen3-1.7B-4bit"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,7 +23,13 @@ class EngramConfig:
     embedding_model: str
     embedding_dimensions: int
     classifier_model: str
-    ollama_base_url: str
+    usage_db_path: Path
+    feedback_db_path: Path
+    usage_telemetry_enabled: bool
+
+    def model_path(self, name: str) -> Path:
+        path = Path(name).expanduser()
+        return path if path.is_absolute() else self.data_dir / "models" / path
 
 
 def load_config(
@@ -82,7 +87,10 @@ def load_config(
         classifier_model=environment.get(
             "ENGRAM_CLASSIFIER_MODEL", DEFAULT_CLASSIFIER_MODEL
         ),
-        ollama_base_url=environment.get(
-            "ENGRAM_OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL
-        ),
+        # 使用统计是可删除的运行数据，不进入 authoritative/、导出或备份。
+        # 路径固定在 data_dir 下，避免被误配到仓库或同步目录。
+        usage_db_path=resolved / "runtime" / "usage.sqlite3",
+        # 反馈与逐次运行观测同样是旁路数据，不进入正式知识库。
+        feedback_db_path=resolved / "runtime" / "feedback.sqlite3",
+        usage_telemetry_enabled=environment.get("ENGRAM_USAGE_TELEMETRY") != "0",
     )
