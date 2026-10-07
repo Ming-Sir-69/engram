@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fail-closed publication boundary for a deliberately prepared public source tree.
 
 Only explicitly listed public UTF-8 files are read. Runtime trees are never inputs.
