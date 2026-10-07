@@ -16,8 +16,10 @@ Earlier public code declared 0.1.0 and had no formal release tags. This package 
 
 Requires Python 3.13+, uv, and Apple Silicon macOS for the current MLX dependency set. Keyword reads and writes do not load a model.
 
+The vector layer also requires SQLite extension loading (`enable_load_extension`), which some macOS Python distributions omit. The command below uses uv-managed Python; CI checks this capability before running the complete synthetic suite.
+
 ```sh
-uv sync --all-groups --extra remote
+uv sync --managed-python --all-groups --extra remote
 uv run python examples/synthetic_corrections.py
 uv run pytest
 uv run ruff check .
