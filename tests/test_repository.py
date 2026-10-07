@@ -40,9 +40,9 @@ def test_same_content_is_idempotent(repository: RecordRepository) -> None:
 
 def test_projects_are_stored_and_returned(repository: RecordRepository) -> None:
     record = repository.create(
-        RecordDraft(title="t", body="b", projects=("engram", "jarvis-lite"))
+        RecordDraft(title="t", body="b", projects=("engram", "synthetic-project-b"))
     )
-    assert repository.get(record.record_id).projects == ("engram", "jarvis-lite")
+    assert repository.get(record.record_id).projects == ("engram", "synthetic-project-b")
 
 
 def test_invalid_record_type_is_rejected(repository: RecordRepository) -> None:

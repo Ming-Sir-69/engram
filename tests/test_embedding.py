@@ -2,7 +2,7 @@ import pytest
 
 from engram.embedding import (
     DeterministicEmbedder,
-    OllamaEmbedder,
+    MLXEmbedder,
     from_blob,
     to_blob,
 )
@@ -29,29 +29,21 @@ def test_deterministic_embedder_separates_topics() -> None:
     assert dot < 0.5
 
 
-def test_ollama_rejects_remote_url() -> None:
-    with pytest.raises(ValueError):
-        OllamaEmbedder(base_url="http://example.com:11434")
-
-
-def test_ollama_transport_failure_becomes_model_unavailable() -> None:
-    def broken(url: str, payload: dict[str, object]) -> dict[str, object]:
-        raise OSError("connection refused")
-
-    embedder = OllamaEmbedder(transport=broken)
-    with pytest.raises(ModelUnavailableError):
-        embedder.embed(["x"])
-
-
-def test_dimension_mismatch_is_permanent_error() -> None:
-    def wrong(url: str, payload: dict[str, object]) -> dict[str, object]:
-        return {"embeddings": [[0.1, 0.2]]}
-
-    embedder = OllamaEmbedder(dimensions=768, transport=wrong)
-    with pytest.raises(ValueError):
-        embedder.embed(["x"])
-
-
 def test_empty_batch_returns_empty() -> None:
     embedder = DeterministicEmbedder(dimensions=64)
     assert embedder.embed([]) == []
+
+
+def test_mlx_requires_local_model(tmp_path) -> None:
+    embedder = MLXEmbedder(model_path=tmp_path / "missing")
+    with pytest.raises(ModelUnavailableError, match="missing"):
+        embedder.embed(["知识库检索"])
+
+
+def test_mlx_query_uses_retrieval_instruction(tmp_path) -> None:
+    embedder = MLXEmbedder(model_path=tmp_path)
+    captured = []
+    embedder.embed = lambda texts: captured.extend(texts) or [[0.0] * 1024]
+    embedder.embed_query("负荷分级")
+    assert captured[0].startswith("Instruct: Retrieve relevant passages")
+    assert captured[0].endswith("Query: 负荷分级")

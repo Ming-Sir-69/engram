@@ -1,0 +1,42 @@
+name: Synthetic Engram core
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: macos-14
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      HF_HUB_OFFLINE: '1'
+      TRANSFORMERS_OFFLINE: '1'
+      ENGRAM_USAGE_TELEMETRY: '0'
+      UV_MANAGED_PYTHON: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Install dependency manager
+        run: python -m pip install uv==0.10.7
+      - name: Install locked code dependencies without model weights
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        run: |
+          uv python install --no-bin 3.13
+          uv sync --managed-python --frozen --all-groups --extra remote
+      - name: Confirm SQLite extension support
+        run: uv run python -c 'import sqlite3; assert hasattr(sqlite3.Connection, "enable_load_extension"), "Python must enable SQLite extensions"'
+      - name: Synthetic engineering regressions
+        run: uv run pytest -p no:cacheprovider
+      - name: Source lint
+        run: uv run ruff check --no-cache .
+      - name: Invented correction example
+        run: uv run python examples/synthetic_corrections.py

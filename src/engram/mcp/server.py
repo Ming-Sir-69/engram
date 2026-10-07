@@ -1,9 +1,6 @@
 """stdio 上的 JSON-RPC 2.0 传输。
 
-只实现 stdio。传输自己写而不引入官方 SDK：SDK 的体量几乎都在 HTTP、OAuth 与
-遥测上，本项目一样也用不到，却会把"完全本地、依赖可审计"这个前提破坏掉。
-代价是协议演进要自己跟——因此版本号集中在 `PROTOCOL_VERSION`，方法分发也
-只有三个入口，改动面是可控的。
+本地 stdio 保持零额外依赖；可选 HTTP/SSE 传输位于 remote.py，使用官方 SDK。
 
 错误分两层，混淆这两层会让模型收不到该收的反馈：
 
@@ -20,11 +17,13 @@ import sys
 from typing import Any, TextIO
 
 from engram.errors import EngramError
+from engram.mcp.profile import DEFAULT_PROFILE, MCPProfile, get_profile
 from engram.mcp.tools import ToolContext, call_tool, tool_descriptors
 
 PROTOCOL_VERSION = "2025-06-18"
 SERVER_NAME = "engram"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.4.0"
+INSTRUCTIONS = DEFAULT_PROFILE.instructions
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -53,11 +52,16 @@ def _content(payload: dict, *, is_error: bool) -> dict:
     }
 
 
-def _initialize() -> dict:
+def _initialize(profile: MCPProfile = DEFAULT_PROFILE) -> dict:
     return {
         "protocolVersion": PROTOCOL_VERSION,
         "capabilities": {"tools": {}},
-        "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+        "serverInfo": {
+            "name": profile.server_name,
+            "title": profile.title,
+            "version": SERVER_VERSION,
+        },
+        "instructions": profile.instructions,
     }
 
 
@@ -76,7 +80,9 @@ def _call(context: ToolContext, params: dict) -> dict:
         )
 
 
-def _dispatch(context: ToolContext, request: dict) -> dict | None:
+def _dispatch(
+    context: ToolContext, request: dict, profile: MCPProfile = DEFAULT_PROFILE
+) -> dict | None:
     id_ = request.get("id")
     method = request.get("method")
     # 通知没有 id，按协议不能回。
@@ -86,7 +92,7 @@ def _dispatch(context: ToolContext, request: dict) -> dict | None:
         return _error(id_, INVALID_REQUEST, "method is required")
     params = request.get("params") or {}
     if method == "initialize":
-        return _result(id_, _initialize())
+        return _result(id_, _initialize(profile))
     if method == "tools/list":
         return _result(id_, {"tools": tool_descriptors()})
     if method == "tools/call":
@@ -99,6 +105,7 @@ def _dispatch(context: ToolContext, request: dict) -> dict | None:
 def serve(
     context: ToolContext,
     *,
+    profile: str = "default",
     stdin: TextIO | None = None,
     stdout: TextIO | None = None,
 ) -> None:
@@ -107,6 +114,8 @@ def serve(
     一行一条 JSON。任何单条请求的失败都只影响该条响应，会话继续——
     MCP 会话一旦断开，宿主通常不会自动重连，代价远大于一次调用出错。
     """
+    selected = get_profile(profile)
+    context.client_profile = selected.key
     source = stdin if stdin is not None else sys.stdin
     sink = stdout if stdout is not None else sys.stdout
 
@@ -122,7 +131,7 @@ def serve(
             if not isinstance(request, dict):
                 response = _error(None, INVALID_REQUEST, "request must be an object")
             else:
-                response = _dispatch(context, request)
+                response = _dispatch(context, request, selected)
         if response is None:
             continue
         sink.write(json.dumps(response, ensure_ascii=False) + "\n")
