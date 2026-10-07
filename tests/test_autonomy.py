@@ -213,3 +213,66 @@ def test_executor_whitelist_and_revision_attribution(ctx):
         (r["record_id"],),
     ).fetchone()[0]
     assert by == "maintenance:claude-opus-5-5"
+
+
+def test_fts_repair_loads_extension_once_and_keeps_both_integrity_gates(ctx, monkeypatch):
+    """Synthetic FTS mutation must not re-register sqlite-vec inside the transaction."""
+    from engram import autonomy
+
+    c = ctx.repository.connection
+    c.execute("DELETE FROM records_fts")
+    original_load = autonomy.sqlite_vec.load
+    loads = []
+    checks = []
+
+    def traced_load(connection):
+        loads.append(connection.in_transaction)
+        return original_load(connection)
+
+    monkeypatch.setattr(autonomy.sqlite_vec, "load", traced_load)
+    c.set_trace_callback(lambda sql: checks.append(sql) if sql.startswith("PRAGMA ") else None)
+    try:
+        result = maintain(ctx, request(ctx, [{"op": "rebuild_fts"}], "synthetic-extension-once"))
+    finally:
+        c.set_trace_callback(None)
+    assert result["applied"], result
+    assert loads == [False]
+    assert checks.count("PRAGMA integrity_check(10)") == 2
+    assert checks.count("PRAGMA foreign_key_check") == 2
+    assert c.execute("SELECT COUNT(*) FROM records_fts").fetchone()[0] == 1
+
+
+def test_pre_write_foreign_key_gate_rejects_synthetic_orphan(ctx):
+    c = ctx.repository.connection
+    c.execute("PRAGMA foreign_keys=OFF")
+    c.execute("INSERT INTO record_projects(record_id,project) VALUES (?,?)",
+              ("synthetic-missing-parent", "synthetic-project"))
+    c.execute("PRAGMA foreign_keys=ON")
+    before = fingerprint(c)
+    with pytest.raises(InvalidInputError, match="foreign-key gate failed"):
+        maintain(ctx, request(ctx, [{"op": "rebuild_fts"}], "synthetic-pre-gate"))
+    assert fingerprint(c) == before
+    assert c.execute("SELECT COUNT(*) FROM records_fts").fetchone()[0] == 1
+
+
+def test_post_write_foreign_key_gate_rolls_back_synthetic_fault(ctx, monkeypatch):
+    from engram import autonomy
+
+    c = ctx.repository.connection
+    original_tokenize = autonomy.fts_document
+    before = fingerprint(c)
+
+    def insert_deferred_synthetic_fault(text):
+        # Simulate a failing extension/operation with a real SQLite FK violation.
+        c.execute("PRAGMA defer_foreign_keys=ON")
+        c.execute("INSERT INTO record_projects(record_id,project) VALUES (?,?)",
+                  ("synthetic-missing-parent", "synthetic-project"))
+        return original_tokenize(text)
+
+    monkeypatch.setattr(autonomy, "fts_document", insert_deferred_synthetic_fault)
+    result = maintain(ctx, request(ctx, [{"op": "rebuild_fts"}], "synthetic-post-gate"))
+    assert result["applied"] is False and result["state"] == "rolled_back"
+    assert result["rejection"] == "foreign-key gate failed"
+    assert fingerprint(c) == before
+    assert c.execute("PRAGMA foreign_key_check").fetchone() is None
+    assert c.execute("SELECT COUNT(*) FROM records_fts").fetchone()[0] == 1
