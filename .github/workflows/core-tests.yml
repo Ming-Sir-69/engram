@@ -16,7 +16,6 @@ jobs:
       HF_HUB_OFFLINE: '1'
       TRANSFORMERS_OFFLINE: '1'
       ENGRAM_USAGE_TELEMETRY: '0'
-      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,6 +26,8 @@ jobs:
       - name: Install dependency manager
         run: python -m pip install uv==0.10.7
       - name: Install locked code dependencies without model weights
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
         run: uv sync --frozen --all-groups --extra remote
       - name: Synthetic engineering regressions
         run: uv run pytest -p no:cacheprovider
