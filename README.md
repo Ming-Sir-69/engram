@@ -16,8 +16,10 @@ Engram 0.4.0 把长期知识保存在本机 SQLite 中，供不同 Agent 使用�
 
 需要 Python 3.13+、uv。当前依赖使用 Apple MLX，支持 Apple Silicon macOS；关键词和写入路径不加载模型。
 
+向量层还要求 Python 的 SQLite 启用扩展加载（`enable_load_extension`）；部分 macOS Python 发行版未启用此功能。下面使用 uv 管理的 Python；CI 会先检查这项能力，再运行全套合成测试。
+
 ```sh
-uv sync --all-groups --extra remote
+uv sync --managed-python --all-groups --extra remote
 uv run python examples/synthetic_corrections.py
 uv run pytest
 uv run ruff check .
