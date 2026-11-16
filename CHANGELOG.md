@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1] - 2026-11-16
+
+- Complete all 16 related-study citations, dependency/model references, and documented maintenance/link semantics after editorial review; remove unused header assets.
+
+- Move CI to supported macOS 15 after retirement of the macOS 14 runner.
+
+- Refresh bilingual documentation and reviewed light/dark covers. Separate algorithm references from related research.
+- Pin cover hashes in the publication guard; no knowledge-store or authentication behavior changes.
+
 ## [0.4.0] - 2026-10-07
 
 - SQLite 兼容修复：向量扩展在写事务前初始化一次，避免部分 SQLite 构建在 FTS 写入后重复初始化失败；写前/写后的完整性、外键与 FTS 覆盖门禁仍完整执行。

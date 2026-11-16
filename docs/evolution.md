@@ -13,3 +13,7 @@
 0.4.0 同时公开维护与观测模块的代码合同，排除部署运行器、真实日程、运行数据和私人配置。源码自改进的部署网关不在公开包内，不能由这个里程碑推导出可运行的自动发布系统。
 
 下一版必须说明：解决的问题、接口/架构变化、选择理由、替换的旧机制、可证伪研究假设、验证方法和未知收益。若只有研究方向而没有实现，应标为候选，不能列进“已实现”。
+
+## 0.4.1 · Documentation
+
+Bilingual presentation and theme-aware covers; runtime behavior unchanged. See [release notes](evolution/0.4.1.md).

@@ -40,6 +40,9 @@ TEXT_SUFFIXES = frozenset({
     ".sh", ".bash", ".zsh", ".lock", ".cfg", ".ini", ".xml", ".html", ".css",
     ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".svg", ".sql",
 })
+# Reviewed generated covers only; any changed image requires visual review.
+COVER_HASHES = {'readme-assets/cover-en-light.png': '634a40d2ec85b9aba99c610be93876106b4d5f473fa06544e7158a71ff4c1bb8', 'readme-assets/cover-en-dark.png': 'bc6da4422c7b97e8a77ec374316c9c1a5172ea3cfda34477727698d6681220cd', 'readme-assets/cover-zh-dark.png': 'ac483d42fee709851c46092e76a17c4198a91e43fb6b348da25aa5ad6472c1dd', 'readme-assets/cover-zh-light.png': '99a768c31bea46bc815b64563c83d8ce417f54c7ac93533282a00c29cefcee91'}
+
 TEXT_NAMES = frozenset({"LICENSE", "NOTICE", "COPYING", "Makefile", ".gitignore", ".gitattributes", ".editorconfig", ".python-version"})
 UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
 SYNTHETIC_UUIDS = frozenset({"00000000-0000-0000-0000-000000000000", "00000000-0000-4000-8000-000000000001"})
@@ -386,7 +389,7 @@ def check(root, base_ref=None):
             issues.append(Issue("forbidden-directory", path))
         if suffix in DENIED_SUFFIXES or basename == ".env" or basename.startswith(".env."):
             issues.append(Issue("forbidden-file-type", path))
-        elif suffix not in TEXT_SUFFIXES and basename not in TEXT_NAMES:
+        elif path not in COVER_HASHES and suffix not in TEXT_SUFFIXES and basename not in TEXT_NAMES:
             issues.append(Issue("unsupported-file-type", path))
         issues.extend(scan_content(path, path, PUBLIC_HOSTS))
     if issues:
@@ -413,6 +416,12 @@ def check(root, base_ref=None):
     payload = {}
     texts = {}
     for path in sorted(allowed):
+        if path in COVER_HASHES:
+            data = (root / path).read_bytes()
+            if hashlib.sha256(data).hexdigest() != COVER_HASHES[path]:
+                issues.append(Issue("cover-hash-mismatch", path))
+            payload[path], texts[path] = data, ""
+            continue
         payload[path], texts[path] = read_text_file(root, path)
         issues.extend(scan_content(path, texts[path], PUBLIC_HOSTS | set(hosts)))
         if path.endswith(".svg") and re.search(r"<(?:script|foreignObject|iframe|object|embed)\b|<!DOCTYPE|<!ENTITY|\bon[a-z]+\s*=|\b(?:href|src)\s*=\s*[\"'](?:https?:|file:|data:|javascript:)", texts[path], re.IGNORECASE):

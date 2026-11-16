@@ -41,6 +41,29 @@ public_url_hosts = ["github.com"]
         self.files = ["PUBLIC-FILES.json", "PUBLICATION.toml", "pyproject.toml", "CHANGELOG.md", "src/demo.py", "docs/evolution/1.0.0.md"]
         self.manifest()
 
+    def test_reviewed_cover_hash_and_other_binary_rejection(self):
+        import hashlib
+        from unittest.mock import patch
+
+        path = "readme-assets/cover-zh-light.png"
+        target = self.root / path
+        target.parent.mkdir()
+        data = b"\x89PNG\r\n\x1a\nsynthetic-image"
+        target.write_bytes(data)
+        self.files.append(path)
+        self.manifest()
+        with patch.dict(guard.COVER_HASHES, {path: hashlib.sha256(data).hexdigest()}, clear=True):
+            guard.check(self.root)
+            target.write_bytes(data + b"changed")
+            self.rejected("cover-hash-mismatch")
+        target.unlink()
+        self.files.remove(path)
+        other = "readme-assets/unreviewed.png"
+        (self.root / other).write_bytes(data)
+        self.files.append(other)
+        self.manifest()
+        self.rejected("unsupported-file-type")
+
     def write(self, relative, content):
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
