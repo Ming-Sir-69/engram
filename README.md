@@ -70,6 +70,11 @@ uv run engram mcp
 
 [架构与公开副本差异](docs/architecture.md) · [演化历史](docs/evolution.md)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="readme-assets/write-path-zh-dark.svg">
+  <img alt="Write and indexing sequence" src="readme-assets/write-path-zh-light.svg" width="100%">
+</picture>
+
 ## 局限
 
 本包含自有核心源码、合成测试、示例与文档，不含实际记忆、日志、反馈、上下文、生产回执、个人配置、运维运行器或权重。受控内容维护、观测与固定证据模块是可复用源码，示例默认关闭观测及自动维护。源码自改进 `source_improvement` 依赖部署方另行提供的网关，本包不提供该流水线，默认不暴露该工具。

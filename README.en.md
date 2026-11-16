@@ -70,6 +70,11 @@ SQLite is the fact store; content and full-text indexing commit together, while 
 
 [Architecture and public-copy differences](docs/architecture.md) · [Evolution](docs/evolution.md)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="readme-assets/write-path-en-dark.svg">
+  <img alt="Write and indexing sequence" src="readme-assets/write-path-en-light.svg" width="100%">
+</picture>
+
 ## Limitations
 
 The package contains owned core source, synthetic tests, examples, and documentation. It excludes actual knowledge, logs, feedback, context, receipts, personal configuration, operations runners, and model weights. Content maintenance, observability, and fixed evidence modules are reusable source; examples disable observation and automatic maintenance. `source_improvement` requires a separately supplied deployment gateway, which is excluded and hidden by default.
