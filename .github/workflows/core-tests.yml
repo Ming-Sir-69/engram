@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   core:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       HF_HUB_OFFLINE: '1'

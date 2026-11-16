@@ -2,6 +2,8 @@
 
 ## [0.4.1] - 2026-11-16
 
+- Move CI to supported macOS 15 after retirement of the macOS 14 runner.
+
 - Refresh bilingual documentation and reviewed light/dark covers. Separate algorithm references from related research.
 - Pin cover hashes in the publication guard; no knowledge-store or authentication behavior changes.
 
