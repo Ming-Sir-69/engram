@@ -2,6 +2,8 @@
 
 ## [0.4.1] - 2026-11-16
 
+- Complete all 16 related-study citations, dependency/model references, and documented maintenance/link semantics after editorial review; remove unused header assets.
+
 - Move CI to supported macOS 15 after retirement of the macOS 14 runner.
 
 - Refresh bilingual documentation and reviewed light/dark covers. Separate algorithm references from related research.
