@@ -171,7 +171,7 @@ def test_official_sdk_stdio_profile(tmp_path):
                     result = await session.initialize()
                     assert result.serverInfo.name == "engram-claude"
                     assert result.serverInfo.title == "Engram Claude"
-                    assert result.serverInfo.version == "0.4.1"
+                    assert result.serverInfo.version == "0.4.2"
                     listed = await session.list_tools()
                     assert {item.name for item in listed.tools} == {
                         item["name"] for item in tool_descriptors()
