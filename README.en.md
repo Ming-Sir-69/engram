@@ -6,7 +6,7 @@
 <p align="center"><a href="docs/architecture.md">Architecture</a> · <a href="docs/research-directions.md">Research</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="CONTRIBUTING.md">Contributing</a></p>
 <p align="center">
 <img alt="MIT" src="https://img.shields.io/badge/license-MIT-F6C555?style=flat-square&amp;labelColor=2E2A26">
-<img alt="Version" src="https://img.shields.io/badge/version-0.4.2-6B655C?style=flat-square&amp;labelColor=2E2A26">
+<img alt="Version" src="https://img.shields.io/badge/version-0.4.3-6B655C?style=flat-square&amp;labelColor=2E2A26">
 <img alt="Python" src="https://img.shields.io/badge/Python-3.13%2B-6B655C?style=flat-square&amp;labelColor=2E2A26">
 <img alt="SQLite" src="https://img.shields.io/badge/storage-SQLite-A8A196?style=flat-square&amp;labelColor=2E2A26">
 </p>
@@ -14,7 +14,7 @@
 
 # Engram · Shared local knowledge for agents
 
-Engram 0.4.2 keeps long-term knowledge in a local SQLite database shared by different agents. Writers provide content; classification and vectors are completed later. Explicit corrections preserve provenance while reads distinguish currently applicable information from original history.
+Engram 0.4.3 keeps long-term knowledge in a local SQLite database shared by different agents. Writers provide content; classification and vectors are completed later. Explicit corrections preserve provenance while reads distinguish currently applicable information from original history.
 
 Earlier public code declared 0.1.0 and had no formal release tags. Version 0.4.0 first packaged the current core as public source; 0.4.1 updated CI, documentation, and its publication checks, and 0.4.2 updates the signature and covers. Intermediate development is described as milestones, without inventing 0.2/0.3 releases. See the [changelog](CHANGELOG.md), [architecture](docs/architecture.md), [evolution](docs/evolution.md), and [research directions](docs/research-directions.md).
 
