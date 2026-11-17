@@ -21,3 +21,7 @@ Bilingual presentation and theme-aware covers; runtime behavior unchanged. See [
 ## 0.4.2 · EM signature
 
 Updated covers and theme-aware inline logo. See [release notes](evolution/0.4.2.md).
+
+## 0.4.3 · Full cover illustrations
+
+Remove the circular cover mask using approved exports. See [release notes](evolution/0.4.3.md).

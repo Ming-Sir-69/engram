@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.3] - 2026-11-17
+
+- Replace all four covers with approved full-illustration exports without the circular mask.
+- Refresh exact cover hashes and release metadata; runtime behavior is unchanged.
+
 ## [0.4.2] - 2026-11-17
 
 - Replace the documentation signature with theme-aware EM logos and updated covers.
