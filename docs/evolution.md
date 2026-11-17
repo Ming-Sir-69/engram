@@ -17,3 +17,7 @@
 ## 0.4.1 · Documentation
 
 Bilingual presentation and theme-aware covers; runtime behavior unchanged. See [release notes](evolution/0.4.1.md).
+
+## 0.4.2 · EM signature
+
+Updated covers and theme-aware inline logo. See [release notes](evolution/0.4.2.md).

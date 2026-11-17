@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.2] - 2026-11-17
+
+- Replace the documentation signature with theme-aware EM logos and updated covers.
+- Refresh exact cover hashes and the publication allowlist; runtime behavior is unchanged.
+
 ## [0.4.1] - 2026-11-16
 
 - Complete all 16 related-study citations, dependency/model references, and documented maintenance/link semantics after editorial review; remove unused header assets.

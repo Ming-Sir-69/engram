@@ -1,7 +1,7 @@
-# ✦ EricMingle69 · 个人维护与授权说明
+# EricMingle69 · 个人维护与授权说明
 
 **GitHub 维护账户：** [Ming-Sir-69](https://github.com/Ming-Sir-69)  
-**文档身份标志：** ✦ EricMingle69
+**文档身份标志：** <picture><source media="(prefers-color-scheme: dark)" srcset="readme-assets/em-logo-dark.svg"><img src="readme-assets/em-logo-light.svg" alt="EM" height="12"></picture> EricMingle69
 
 ## 署名的含义
 
@@ -19,7 +19,7 @@
 
 ## Personal identity and permissions
 
-The GitHub maintainer is [Ming-Sir-69](https://github.com/Ming-Sir-69). **✦ EricMingle69** identifies the maintenance of this repository's documentation, bilingual navigation and header artwork. Third-party code, authors, trademarks and materials keep their original attribution. This mark does not claim their ownership or grant endorsement, account, device or service access.
+The GitHub maintainer is [Ming-Sir-69](https://github.com/Ming-Sir-69). <picture><source media="(prefers-color-scheme: dark)" srcset="readme-assets/em-logo-dark.svg"><img src="readme-assets/em-logo-light.svg" alt="EM" height="12"></picture> EricMingle69 identifies the maintenance of this repository's documentation, bilingual navigation and header artwork. Third-party code, authors, trademarks and materials keep their original attribution. This mark does not claim their ownership or grant endorsement, account, device or service access.
 
 Where an existing license already names this maintainer, EricMingle69 is the personal documentation alias of Eric Mingle / Ming-Sir-69, not a separate third-party copyright holder.
 
