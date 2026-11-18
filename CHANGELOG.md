@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.4] - 2026-11-18
+
+- Replace all four covers: illustration paper tone is now snapped to the exact cover background, removing a faint tint around the artwork.
+- Refresh exact cover hashes and release metadata; runtime behavior is unchanged.
+
 ## [0.4.3] - 2026-11-17
 
 - Replace all four covers with approved full-illustration exports without the circular mask.

@@ -58,7 +58,7 @@ def test_http_profile_identity_and_shared_data(tmp_path):
             )
             expected_name = "engram-claude" if profile == "claude" else "engram"
             assert initialized["serverInfo"]["name"] == expected_name
-            assert initialized["serverInfo"]["version"] == "0.4.3"
+            assert initialized["serverInfo"]["version"] == "0.4.4"
             if profile == "claude":
                 assert initialized["instructions"] == CLAUDE_PROFILE.instructions
                 saved = call(client, "remember", {"body": "isolated shared profile"})

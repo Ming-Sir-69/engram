@@ -1,6 +1,6 @@
 [project]
 name = "engram"
-version = "0.4.3"
+version = "0.4.4"
 description = "Local-first knowledge base with self-evolving taxonomy"
 requires-python = ">=3.13"
 dependencies = [

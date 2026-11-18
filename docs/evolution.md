@@ -25,3 +25,7 @@ Updated covers and theme-aware inline logo. See [release notes](evolution/0.4.2.
 ## 0.4.3 · Full cover illustrations
 
 Remove the circular cover mask using approved exports. See [release notes](evolution/0.4.3.md).
+
+## 0.4.4 · Exact cover background
+
+Snap the illustration paper tone to the cover background. See [release notes](evolution/0.4.4.md).
