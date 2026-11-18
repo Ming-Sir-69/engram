@@ -22,7 +22,7 @@ from engram.mcp.tools import ToolContext, call_tool, tool_descriptors
 
 PROTOCOL_VERSION = "2025-06-18"
 SERVER_NAME = "engram"
-SERVER_VERSION = "0.4.4"
+SERVER_VERSION = "0.4.5"
 INSTRUCTIONS = DEFAULT_PROFILE.instructions
 
 PARSE_ERROR = -32700

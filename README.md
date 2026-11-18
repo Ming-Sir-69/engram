@@ -6,7 +6,7 @@
 <p align="center"><a href="docs/architecture.md">架构</a> · <a href="docs/research-directions.md">研究方向</a> · <a href="CHANGELOG.md">版本记录</a> · <a href="CONTRIBUTING.md">贡献</a></p>
 <p align="center">
 <img alt="MIT" src="https://img.shields.io/badge/license-MIT-F6C555?style=flat-square&amp;labelColor=2E2A26">
-<img alt="Version" src="https://img.shields.io/badge/version-0.4.4-6B655C?style=flat-square&amp;labelColor=2E2A26">
+<img alt="Version" src="https://img.shields.io/badge/version-0.4.5-6B655C?style=flat-square&amp;labelColor=2E2A26">
 <img alt="Python" src="https://img.shields.io/badge/Python-3.13%2B-6B655C?style=flat-square&amp;labelColor=2E2A26">
 <img alt="SQLite" src="https://img.shields.io/badge/storage-SQLite-A8A196?style=flat-square&amp;labelColor=2E2A26">
 </p>
@@ -14,7 +14,7 @@
 
 # Engram · Agent 共用本地知识库
 
-Engram 0.4.4 把长期知识保存在本机 SQLite 中，供不同 Agent 使用同一份事实源。写入方提供内容，分类与向量在后续补全；明确纠正形成可追溯关系，读取时区分当前适用内容与历史原文。
+Engram 0.4.5 把长期知识保存在本机 SQLite 中，供不同 Agent 使用同一份事实源。写入方提供内容，分类与向量在后续补全；明确纠正形成可追溯关系，读取时区分当前适用内容与历史原文。
 
 此前公开代码标为 0.1.0，没有正式版本标签。0.4.0 将当前核心整理为公开源码，0.4.1 更新 CI、文档及其发布检查，0.4.2 更新署名与封面；历史阶段按里程碑描述，不补造 0.2/0.3 发布。见 [版本变化](CHANGELOG.md)、[架构](docs/architecture.md)、[演化历史](docs/evolution.md) 和 [研究方向](docs/research-directions.md)。
 

@@ -29,3 +29,7 @@ Remove the circular cover mask using approved exports. See [release notes](evolu
 ## 0.4.4 · Exact cover background
 
 Snap the illustration paper tone to the cover background. See [release notes](evolution/0.4.4.md).
+
+## 0.4.5 · Edge-fitted cover illustration
+
+One shared placement rule; edge-touching sides fade. See [release notes](evolution/0.4.5.md).

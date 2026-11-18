@@ -41,7 +41,7 @@ TEXT_SUFFIXES = frozenset({
     ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".svg", ".sql",
 })
 # Reviewed generated covers only; any changed image requires visual review.
-COVER_HASHES = {'readme-assets/cover-zh-light.png': 'd8c9b64b39d757d586f57ccd4c8e022c775b445fa1f7a27e9c5c466a46644eae', 'readme-assets/cover-zh-dark.png': '588e7d8da729813c80d1067aee02f1a9aa9a372253361489e1b2533ee846752a', 'readme-assets/cover-en-light.png': '30d09d5d50af519da33ee7acbb0e074ab3c23de8ef6996119c545acc09f896a9', 'readme-assets/cover-en-dark.png': 'dca15201832137af054e40461791c55a1ed5c209b4fcd5584a5ad0f3738a65aa'}
+COVER_HASHES = {'readme-assets/cover-zh-light.png': '47254d228b983d07b3b0ce04f42e4d1c11b18887d6e866ab7ab39dd49a661551', 'readme-assets/cover-zh-dark.png': '84558f7cace1391931de53d9e07950d9aee9076ddef83bfd1fecaac27a90ed64', 'readme-assets/cover-en-light.png': 'd99a7eddda1cc3990dd83ccdd23bb7de988173d959bba88939bca85eea1e9564', 'readme-assets/cover-en-dark.png': 'ddb8b2a4cc331716a289bc0a3af709aaca9bbcd48a648a70f00160cc5085e4d1'}
 
 TEXT_NAMES = frozenset({"LICENSE", "NOTICE", "COPYING", "Makefile", ".gitignore", ".gitattributes", ".editorconfig", ".python-version"})
 UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)

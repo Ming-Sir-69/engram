@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.5] - 2026-11-18
+
+- Replace all four covers: the illustration is cropped to its content and sized by one shared rule; sides where the drawing runs to the image edge fade into the background, so no square boundary shows. Runtime behavior is unchanged.
+- Refresh exact cover hashes and release metadata.
+
 ## [0.4.4] - 2026-11-18
 
 - Replace all four covers: illustration paper tone is now snapped to the exact cover background, removing a faint tint around the artwork.
